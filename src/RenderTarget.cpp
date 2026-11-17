@@ -100,6 +100,10 @@ bool create_render_target(
                 break;
             }
         }
+        if (i == 4) {
+            dbg("D3D initialization failed: no supported depth/stencil format could be created");
+            return false;
+        }
         depth_stencil_format = wantedFormats[i];
         dbg(std::format("Using {} as depthstencil format", (int)depth_stencil_format));
     } else {
