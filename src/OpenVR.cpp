@@ -95,8 +95,9 @@ void OpenVR::init(IDirect3DDevice9* dev, IDirect3DVR9** vrdev, uint32_t companio
                 .quad_view_rendering = false,
                 .multiview_rendering = gfx.second.multiview_rendering,
             };
-            init_surfaces(dev, ctx, companionWindowWidth, companionWindowHeight);
-            render_contexts[gfx.first] = ctx;
+            auto& storedContext = render_contexts[gfx.first];
+            storedContext = ctx;
+            init_surfaces(dev, storedContext, companionWindowWidth, companionWindowHeight);
         }
         set_render_context("default");
     } catch (const std::runtime_error& e) {
@@ -131,6 +132,50 @@ OpenVR::OpenVR()
 
     eye_pos[LeftEye] = glm::inverse(m4_from_steamvr_matrix(hmd->GetEyeToHeadTransform(static_cast<vr::EVREye>(LeftEye))));
     eye_pos[RightEye] = glm::inverse(m4_from_steamvr_matrix(hmd->GetEyeToHeadTransform(static_cast<vr::EVREye>(RightEye))));
+}
+
+void OpenVR::shutdown_vr()
+{
+    if (hmd || compositor) {
+        vr::VR_Shutdown();
+        hmd = nullptr;
+        compositor = nullptr;
+    }
+
+    if (g::d3d_vr) {
+        g::d3d_vr->WaitDeviceIdle(true);
+    }
+
+    for (auto& [name, ctx] : render_contexts) {
+        for (size_t i = 0; i < 6; ++i) {
+            if (ctx.dx_texture[i]) {
+                ctx.dx_texture[i]->Release();
+                ctx.dx_texture[i] = nullptr;
+            }
+            if (ctx.dx_surface[i]) {
+                ctx.dx_surface[i]->Release();
+                ctx.dx_surface[i] = nullptr;
+            }
+            if (ctx.dx_depth_stencil_surface[i]) {
+                ctx.dx_depth_stencil_surface[i]->Release();
+                ctx.dx_depth_stencil_surface[i] = nullptr;
+            }
+            if (i < 4 && ctx.dx_shared_handle[i]
+             && ctx.dx_shared_handle[i] != INVALID_HANDLE_VALUE) {
+                CloseHandle(ctx.dx_shared_handle[i]);
+                ctx.dx_shared_handle[i] = nullptr;
+            }
+        }
+
+        if (ctx.overlay_border) {
+            ctx.overlay_border->Release();
+            ctx.overlay_border = nullptr;
+        }
+    }
+
+    render_contexts.clear();
+    m_framesPrepared = false;
+    m_textureDescriptorsValid = false;
 }
 
 void OpenVR::set_render_context(const std::string& name)
