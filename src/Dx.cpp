@@ -8,6 +8,7 @@
 #include "Version.hpp"
 
 #include <algorithm>
+#include <exception>
 #include <array>
 #include <gtx/matrix_decompose.hpp>
 #include <unordered_set>
@@ -1045,8 +1046,13 @@ namespace dx {
         g::vr_error = false;
 
         const HRESULT resetResult = g::hooks::reset.call(This, pPresentationParameters);
-        if (FAILED(resetResult))
+        if (FAILED(resetResult)) {
+            // The device is not usable after a failed Reset. Drop the VR
+            // interface rather than letting later hooks access empty contexts.
+            delete g::vr;
+            g::vr = nullptr;
             return resetResult;
+        }
 
         // Reset discards device state; restore the small set of states that
         // the plugin establishes during initial device creation.
