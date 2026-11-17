@@ -1065,8 +1065,12 @@ namespace dx {
         IDirect3DSurface9* backBuffer = nullptr;
         D3DSURFACE_DESC backBufferDesc = {};
         HRESULT result = This->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &backBuffer);
-        if (SUCCEEDED(result) && backBuffer) {
-            result = backBuffer->GetDesc(&backBufferDesc);
+        if (SUCCEEDED(result)) {
+            result = backBuffer
+                ? backBuffer->GetDesc(&backBufferDesc)
+                : E_FAIL;
+        }
+        if (backBuffer) {
             backBuffer->Release();
             backBuffer = nullptr;
         }
