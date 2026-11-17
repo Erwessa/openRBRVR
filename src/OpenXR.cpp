@@ -1636,7 +1636,7 @@ void OpenXR::shutdown_vr()
         cross_api_fence.shared_handle = nullptr;
     }
 
-    if (g::cfg.openxr_motion_compensation && input_state.action_set != XR_NULL_HANDLE) {
+    if (input_state.action_set != XR_NULL_HANDLE) {
         xrDestroyActionSet(input_state.action_set);
         input_state.action_set = XR_NULL_HANDLE;
     }
