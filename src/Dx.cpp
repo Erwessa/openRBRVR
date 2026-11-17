@@ -1037,6 +1037,13 @@ namespace dx {
             }
         } catch (const std::runtime_error& e) {
             MessageBoxA(hFocusWindow, e.what(), "VR init failed", MB_OK);
+
+            // OpenVR may have allocated render-context resources before initialization failed.
+            // Destroy the incomplete interface so render hooks cannot use an invalid context.
+            if (g::vr && g::vr->get_runtime_type() == OPENVR) {
+                delete g::vr;
+                g::vr = nullptr;
+            }
         }
         // Initialize this pointer here, as it's too early to do this in openRBRVR constructor
         auto handle = GetModuleHandle("Plugins\\rbr_rx.dll");
