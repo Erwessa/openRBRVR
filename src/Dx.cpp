@@ -192,13 +192,17 @@ namespace dx {
         g::base_game_shaders.push_back(shader);
 
         if (multiview_supported()) {
-            IDirect3DVertexShader9* modified_shader;
+            IDirect3DVertexShader9* modified_shader = nullptr;
             const auto ret = g::hooks::create_vertex_shader.call(g::d3d_dev, bytecode.data(), &modified_shader);
-            if (patch_spirv_shader_registers(modified_shader)) {
+            if (FAILED(ret) || !modified_shader) {
+                g::base_game_multiview_shaders.push_back(shader);
+                g::failed_multiview_external_shaders++;
+            } else if (patch_spirv_shader_registers(modified_shader)) {
                 g::base_game_multiview_shaders.push_back(modified_shader);
             } else {
-                // If the patching fails, just use the original shader
-                // This will probably cause rendering glitches but should not crash the game
+                // The newly-created shader is not retained when falling back
+                // to the original shader, so release its COM reference.
+                modified_shader->Release();
                 g::base_game_multiview_shaders.push_back(shader);
                 g::failed_multiview_external_shaders++;
             }
@@ -219,6 +223,10 @@ namespace dx {
         static int i = 0;
 
         auto ret = g::hooks::create_vertex_shader.call(g::d3d_dev, pFunction, ppShader);
+        if (FAILED(ret) || !ppShader || !*ppShader) {
+            return FAILED(ret) ? ret : E_FAIL;
+        }
+
         if (i < 40) {
             // These are the base game shaders for RBR that need
             // to be patched with the VR projection.
@@ -242,10 +250,21 @@ namespace dx {
             bytecode.push_back(65535);
 
             // Create the same shader again for multiview patching
-            IDirect3DVertexShader9* multiview_shader;
-            ret |= g::hooks::create_vertex_shader.call(g::d3d_dev, bytecode.data(), &multiview_shader);
+            IDirect3DVertexShader9* multiview_shader = nullptr;
+            const auto multiview_ret = g::hooks::create_vertex_shader.call(g::d3d_dev, bytecode.data(), &multiview_shader);
 
-            if (i < 40) {
+            if (FAILED(multiview_ret) || !multiview_shader) {
+                // Keep the original shader as a safe fallback. Its lifetime is
+                // already covered by the game's reference (base game) or the
+                // explicit cache reference acquired above (BTB).
+                if (i < 40) {
+                    g::base_game_multiview_shaders.push_back(*ppShader);
+                    g::failed_multiview_base_game_shaders++;
+                } else {
+                    g::multiview_btb_shaders.push_back(*ppShader);
+                    g::failed_multiview_btb_shaders++;
+                }
+            } else if (i < 40) {
                 g::base_game_multiview_shaders.push_back(multiview_shader);
             } else {
                 g::multiview_btb_shaders.push_back(multiview_shader);
