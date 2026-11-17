@@ -1618,14 +1618,17 @@ void OpenXR::shutdown_vr()
     }
     if (cross_api_fence.fence) {
         synchronize_graphics_apis(true);
-        if (g::d3d_vr)
-            g::d3d_vr->WaitDeviceIdle(true);
         cross_api_fence.fence->Release();
         cross_api_fence.fence = nullptr;
     }
     if (cross_api_fence.shared_handle) {
         CloseHandle(cross_api_fence.shared_handle);
         cross_api_fence.shared_handle = nullptr;
+    }
+    if (g::d3d_vr) {
+        g::d3d_vr->WaitDeviceIdle(true);
+        g::d3d_vr->Release();
+        g::d3d_vr = nullptr;
     }
 
     if (g::cfg.openxr_motion_compensation) {
