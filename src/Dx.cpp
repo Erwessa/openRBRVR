@@ -522,11 +522,12 @@ namespace dx {
 
     HRESULT __stdcall Present(IDirect3DDevice9* This, const RECT* pSourceRect, const RECT* pDestRect, HWND hDestWindowOverride, const RGNDATA* pDirtyRegion)
     {
-        if (g::vr && !g::vr_error) [[likely]] {
+        auto* vrContext = g::vr ? g::vr->get_current_render_context() : nullptr;
+        if (g::vr && !g::vr_error && vrContext) [[likely]] {
             auto shouldRender = g::current_2d_render_target && !(rbr::is_loading_btb_stage() && !g::cfg.draw_loading_screen);
             if (shouldRender) {
-                if (g::draw_overlay_border) {
-                    render_overlay_border(g::d3d_dev, g::vr->get_current_render_context()->overlay_border);
+                if (g::draw_overlay_border && vrContext->overlay_border) {
+                    render_overlay_border(g::d3d_dev, vrContext->overlay_border);
                 }
                 g::vr->finish_vr_rendering(g::d3d_dev, g::current_2d_render_target.value());
                 render_vr_overlay(g::current_2d_render_target.value(), !rbr::is_rendering_3d());
@@ -540,7 +541,7 @@ namespace dx {
             dbg("Failed to reset depth stencil surface to original");
         }
         auto ret = 0;
-        if (g::vr && !g::vr_error) {
+        if (g::vr && !g::vr_error && vrContext) {
             auto game_mode = rbr::get_game_mode();
             const auto companion_eye = static_cast<RenderTarget>(g::cfg.companion_eye + (g::vr->is_using_quad_view_rendering() ? 2 : 0));
             if (g::cfg.companion_mode == CompanionMode::Static) {
