@@ -1,7 +1,7 @@
 #pragma once
 
 #include <d3d9.h>
-#include <d3d9vr.h>
+#include "d3d9vr.h"
 
 using Direct3DCreateVRFn = HRESULT (WINAPI*)(IDirect3DDevice9*, IDirect3DVR9**);
 

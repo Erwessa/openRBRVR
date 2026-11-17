@@ -3,7 +3,7 @@
 #include "RenderTarget.hpp"
 #include "Util.hpp"
 
-#include <d3d9vr.h>
+#include "d3d9vr.h"
 
 #include <d3d9.h>
 #include <openxr.h>
