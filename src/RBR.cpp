@@ -560,11 +560,32 @@ namespace rbr {
     {
         auto do_rendering = init_or_update_game_data(reinterpret_cast<uintptr_t>(p));
 
-        if (g::d3d_dev->GetRenderTarget(0, &g::original_render_target) != D3D_OK) [[unlikely]] {
-            dbg("Could not get render original target");
+        // Release the COM references retained by the previous render invocation
+        // before replacing these per-frame snapshots.
+        if (g::original_render_target) {
+            g::original_render_target->Release();
+            g::original_render_target = nullptr;
         }
-        if (g::d3d_dev->GetDepthStencilSurface(&g::original_depth_stencil_target) != D3D_OK) [[unlikely]] {
+        if (g::original_depth_stencil_target) {
+            g::original_depth_stencil_target->Release();
+            g::original_depth_stencil_target = nullptr;
+        }
+
+        const HRESULT renderTargetResult = g::d3d_dev->GetRenderTarget(0, &g::original_render_target);
+        if (FAILED(renderTargetResult) || !g::original_render_target) [[unlikely]] {
+            dbg("Could not get render original target");
+            if (g::original_render_target) {
+                g::original_render_target->Release();
+                g::original_render_target = nullptr;
+            }
+        }
+        const HRESULT depthStencilResult = g::d3d_dev->GetDepthStencilSurface(&g::original_depth_stencil_target);
+        if (FAILED(depthStencilResult) || !g::original_depth_stencil_target) [[unlikely]] {
             dbg("Could not get render original depth stencil surface");
+            if (g::original_depth_stencil_target) {
+                g::original_depth_stencil_target->Release();
+                g::original_depth_stencil_target = nullptr;
+            }
         }
 
         if (!do_rendering) [[unlikely]] {
