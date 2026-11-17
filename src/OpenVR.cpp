@@ -23,104 +23,60 @@ static HRESULT get_texture_surface(IDirect3DTexture9* texture, IDirect3DSurface9
     return result;
 }
 
-static constexpr std::string vr_compositor_error_str(vr::VRCompositorError e)
-{
-    switch (e) {
-        case vr::VRCompositorError::VRCompositorError_AlreadySet:
-            return "AlreadySet";
-        case vr::VRCompositorError::VRCompositorError_AlreadySubmitted:
-            return "AlreadySubmitted";
-        case vr::VRCompositorError::VRCompositorError_DoNotHaveFocus:
-            return "DoNotHaveFocus";
-        case vr::VRCompositorError::VRCompositorError_IncompatibleVersion:
-            return "IncompatibleVersion";
-        case vr::VRCompositorError::VRCompositorError_IndexOutOfRange:
-            return "IndexOutOfRange";
-        case vr::VRCompositorError::VRCompositorError_InvalidBounds:
-            return "InvalidBounds";
-        case vr::VRCompositorError::VRCompositorError_InvalidTexture:
-            return "InvalidTexture";
-        case vr::VRCompositorError::VRCompositorError_IsNotSceneApplication:
-            return "IsNotSceneApplication";
-        case vr::VRCompositorError::VRCompositorError_None:
-            return "None";
-        case vr::VRCompositorError::VRCompositorError_RequestFailed:
-            return "RequestFailed";
-        case vr::VRCompositorError::VRCompositorError_SharedTexturesNotSupported:
-            return "SharedTexturesNotSupported";
-        case vr::VRCompositorError::VRCompositorError_TextureIsOnWrongDevice:
-            return "TextureIsOnWrongDevice";
-        case vr::VRCompositorError::VRCompositorError_TextureUsesUnsupportedFormat:
-            return "TextureUsesUnsupportedFormat";
-        default:
-            return "";
-    }
-}
-
-constexpr M4 OpenVR::get_projection_matrix(RenderTarget eye, float z_near, float z_far, bool reverse_z)
-{
-    vr::HmdMatrix44_t mat = hmd->GetProjectionMatrix(static_cast<vr::EVREye>(eye), z_near, z_far);
-
-    auto ret = M4(
-        { mat.m[0][0], mat.m[1][0], mat.m[2][0], mat.m[3][0] },
-        { mat.m[0][1], mat.m[1][1], mat.m[2][1], mat.m[3][1] },
-        { mat.m[0][2], mat.m[1][2], mat.m[2][2], mat.m[3][2] },
-        { mat.m[0][3], mat.m[1][3], mat.m[2][3], mat.m[3][3] });
-
-    if (reverse_z) [[likely]] {
-        ret[2][2] = z_near / (z_near - z_far);
-        ret[2][3] = -1.0f;
-        ret[3][2] = z_near;
-    }
-
-    return ret;
-}
-
-constexpr static M4 m4_from_steamvr_matrix(const vr::HmdMatrix34_t& m)
+static constexpr M4 m4_from_steamvr_matrix(const float* m)
 {
     return M4(
-        { m.m[0][0], m.m[1][0], m.m[2][0], 0.0 },
-        { m.m[0][1], m.m[1][1], m.m[2][1], 0.0 },
-        { m.m[0][2], m.m[1][2], m.m[2][2], 0.0 },
-        { m.m[0][3], m.m[1][3], m.m[2][3], 1.0f });
+        { m[0], m[4], m[8], 0.0f },
+        { m[1], m[5], m[9], 0.0f },
+        { m[2], m[6], m[10], 0.0f },
+        { m[3], m[7], m[11], 1.0f });
 }
 
-void OpenVR::init(IDirect3DDevice9* dev, IDirect3DVR9** vrdev, uint32_t companionWindowWidth, uint32_t companionWindowHeight)
+OpenVR::OpenVR() = default;
+
+M4 OpenVR::get_projection_matrix(RenderTarget eye, float z_near, float z_far, bool reverse_z) const
 {
-    if (vrdev == nullptr || *vrdev == nullptr || g::d3d_vr == nullptr
-     || hmd == nullptr || compositor == nullptr) {
-        throw std::runtime_error("OpenVR initialization failed: required VR interfaces are unavailable");
+    const auto& mat = m_frameState.ProjectionMatrix[eye];
+    auto result = M4(
+        { mat[0], mat[4], mat[8], mat[12] },
+        { mat[1], mat[5], mat[9], mat[13] },
+        { mat[2], mat[6], mat[10], mat[14] },
+        { mat[3], mat[7], mat[11], mat[15] });
+
+    if (reverse_z) [[likely]] {
+        result[2][2] = z_near / (z_near - z_far);
+        result[2][3] = -1.0f;
+        result[3][2] = z_near;
     }
 
-    // WaitGetPoses might access the Vulkan queue so we need to lock it
-    const HRESULT lockResult = g::d3d_vr->LockSubmissionQueue();
-    if (FAILED(lockResult)) {
-        dbg(std::format("Could not lock the Vulkan queue before initial WaitGetPoses (HRESULT 0x{:08X})", static_cast<uint32_t>(lockResult)));
-    } else {
-        const auto poseResult = compositor->WaitGetPoses(poses, vr::k_unMaxTrackedDeviceCount, nullptr, 0);
-        const HRESULT unlockResult = g::d3d_vr->UnlockSubmissionQueue();
-        if (poseResult != vr::VRCompositorError_None) {
-            dbg(std::format("Initial WaitGetPoses failed: {} (code {})", vr_compositor_error_str(poseResult), static_cast<int>(poseResult)));
-        }
-        if (FAILED(unlockResult)) {
-            dbg(std::format("Could not unlock the Vulkan queue after initial WaitGetPoses (HRESULT 0x{:08X})", static_cast<uint32_t>(unlockResult)));
-        }
-    }
+    return result;
+}
 
-    uint32_t w, h;
-    hmd->GetRecommendedRenderTargetSize(&w, &h);
+void OpenVR::init(IDirect3DDevice9* dev, IDirect3DVR9** vrdev,
+                  uint32_t companionWindowWidth, uint32_t companionWindowHeight)
+{
+    if (!dev || !vrdev || !*vrdev || !g::d3d_vr)
+        throw std::runtime_error("OpenVR initialization failed: D3D9VR proxy is unavailable");
 
-    // This can also be used to get a (slightly different) VR display size, if need arises
-    // if (vr::IVRExtendedDisplay* VRExtDisplay = vr::VRExtendedDisplay()) {
-    //	int32_t x, y;
-    // 	VRExtDisplay->GetWindowBounds(&x, &y, &w, &h);
-    // }
+    const HRESULT sceneResult = g::d3d_vr->InitializeOpenVRScene();
+    if (FAILED(sceneResult))
+        throw std::runtime_error(std::format("OpenVR scene initialization failed (HRESULT 0x{:08X})",
+            static_cast<uint32_t>(sceneResult)));
+
+    const HRESULT frameResult = g::d3d_vr->AcquireOpenVRFrame(&m_frameState);
+    if (FAILED(frameResult) || m_frameState.Version != 1
+        || m_frameState.RecommendedWidth == 0 || m_frameState.RecommendedHeight == 0)
+        throw std::runtime_error(std::format("OpenVR initial frame query failed (HRESULT 0x{:08X})",
+            static_cast<uint32_t>(frameResult)));
+
+    const auto width = m_frameState.RecommendedWidth;
+    const auto height = m_frameState.RecommendedHeight;
 
     try {
         for (const auto& gfx : g::cfg.gfx) {
-            auto supersampling = gfx.second.supersampling;
-            auto wss = static_cast<uint32_t>(w * supersampling);
-            auto hss = static_cast<uint32_t>(h * supersampling);
+            const auto supersampling = gfx.second.supersampling;
+            const auto wss = static_cast<uint32_t>(width * supersampling);
+            const auto hss = static_cast<uint32_t>(height * supersampling);
             RenderContext ctx = {
                 .width = { wss, wss },
                 .height = { hss, hss },
@@ -133,56 +89,23 @@ void OpenVR::init(IDirect3DDevice9* dev, IDirect3DVR9** vrdev, uint32_t companio
             init_surfaces(dev, storedContext, companionWindowWidth, companionWindowHeight);
         }
         set_render_context("default");
-    } catch (const std::runtime_error& e) {
-        dbg(e.what());
+    } catch (const std::runtime_error&) {
         throw;
     }
 
     dbg("VR init successful\n");
 }
 
-OpenVR::OpenVR()
-    : hmd(nullptr)
-    , compositor(nullptr)
-{
-    if (!vr::VR_IsHmdPresent()) {
-        throw std::runtime_error("HMD not present, not initializing OpenVR");
-    }
-
-    vr::EVRInitError e = vr::VRInitError_None;
-    hmd = vr::VR_Init(&e, vr::VRApplication_Scene);
-    if (!hmd || e != vr::VRInitError_None) {
-        throw std::runtime_error(std::format("VR init failed: {}", vr::VR_GetVRInitErrorAsEnglishDescription(e)));
-    }
-
-    compositor = vr::VRCompositor();
-    if (!compositor) {
-        vr::VR_Shutdown();
-        throw std::runtime_error("Could not initialize VR compositor");
-    }
-    compositor->SetTrackingSpace(vr::ETrackingUniverseOrigin::TrackingUniverseSeated);
-
-    eye_pos[LeftEye] = glm::inverse(m4_from_steamvr_matrix(hmd->GetEyeToHeadTransform(static_cast<vr::EVREye>(LeftEye))));
-    eye_pos[RightEye] = glm::inverse(m4_from_steamvr_matrix(hmd->GetEyeToHeadTransform(static_cast<vr::EVREye>(RightEye))));
-}
-
 void OpenVR::shutdown_vr()
 {
     discard_prepared_frames();
 
-    if (hmd || compositor) {
-        vr::VR_Shutdown();
-        hmd = nullptr;
-        compositor = nullptr;
-    }
-
-    if (g::d3d_vr) {
+    if (g::d3d_vr)
         g::d3d_vr->WaitDeviceIdle(true);
-    }
 
     for (auto& contextEntry : render_contexts) {
         auto& ctx = contextEntry.second;
-        for (size_t i = 0; i < 6; ++i) {
+        for (size_t i = 0; i < 6; i++) {
             if (ctx.dx_texture[i]) {
                 ctx.dx_texture[i]->Release();
                 ctx.dx_texture[i] = nullptr;
@@ -215,274 +138,163 @@ void OpenVR::shutdown_vr()
         g::d3d_vr = nullptr;
     }
 
+    m_frameState = {};
     m_framesPrepared = false;
-    m_textureDescriptorsValid = false;
 }
 
 void OpenVR::set_render_context(const std::string& name)
 {
     VRInterface::set_render_context(name);
-    m_textureDescriptorsValid = false;
-    if (!g::d3d_vr) {
-        dbg("Cannot update OpenVR texture descriptors because the D3D VR interface is unavailable");
-        return;
-    }
-
-    IDirect3DSurface9 *left_eye = nullptr, *right_eye = nullptr;
-    if (FAILED(get_texture_surface(current_render_context->dx_texture[LeftEye], &left_eye))) {
-        dbg("Failed to get left eye surface");
-        return;
-    }
-    if (FAILED(get_texture_surface(current_render_context->dx_texture[RightEye], &right_eye))) {
-        dbg("Failed to get right eye surface");
-        left_eye->Release();
-        return;
-    }
-
-    const HRESULT leftDescResult = g::d3d_vr->GetVRDesc(left_eye, &dxvk_texture[LeftEye]);
-    const HRESULT rightDescResult = leftDescResult == D3D_OK
-        ? g::d3d_vr->GetVRDesc(right_eye, &dxvk_texture[RightEye])
-        : leftDescResult;
-
-    left_eye->Release();
-    right_eye->Release();
-
-    if (leftDescResult != D3D_OK || rightDescResult != D3D_OK) {
-        dbg("Failed to get eye texture descriptor");
-        return;
-    }
-
-    const auto& left = dxvk_texture[LeftEye];
-    const auto& right = dxvk_texture[RightEye];
-    if (left.Image == 0 || right.Image == 0
-     || left.Image == right.Image
-     || left.SampleCount != VK_SAMPLE_COUNT_1_BIT
-     || right.SampleCount != VK_SAMPLE_COUNT_1_BIT
-     || left.Width == 0 || left.Height == 0
-     || left.Width != right.Width || left.Height != right.Height
-     || left.Format != right.Format
-     || left.Device != right.Device
-     || left.PhysicalDevice != right.PhysicalDevice
-     || left.Instance != right.Instance
-     || left.Queue != right.Queue
-     || left.QueueFamilyIndex != right.QueueFamilyIndex) {
-        dbg("OpenVR eye texture descriptors are inconsistent or not single-sampled");
-        return;
-    }
-
-    openvr_texture[LeftEye].handle = reinterpret_cast<void*>(&dxvk_texture[LeftEye]);
-    openvr_texture[LeftEye].eType = vr::TextureType_Vulkan;
-    openvr_texture[LeftEye].eColorSpace = vr::ColorSpace_Auto;
-    openvr_texture[RightEye].handle = reinterpret_cast<void*>(&dxvk_texture[RightEye]);
-    openvr_texture[RightEye].eType = vr::TextureType_Vulkan;
-    openvr_texture[RightEye].eColorSpace = vr::ColorSpace_Auto;
-    m_textureDescriptorsValid = true;
+    m_framesPrepared = false;
 }
 
 void OpenVR::prepare_frames_for_hmd(IDirect3DDevice9* dev)
 {
-    if (m_framesPrepared) {
-        dbg("Discarding stale prepared OpenVR frame before preparing the next frame");
+    if (m_framesPrepared)
         discard_prepared_frames();
-        if (m_framesPrepared) {
-            dbg("Skipping OpenVR frame preparation because the previous frame could not be discarded");
-            return;
-        }
-    }
-    if (!m_textureDescriptorsValid) {
-        dbg("Skipping OpenVR frame preparation because eye texture descriptors are invalid");
-        return;
-    }
+
     if (!current_render_context || !dev || !g::d3d_vr) {
-        dbg("Skipping OpenVR frame preparation because the render context or D3D VR interface is unavailable");
+        dbg("Skipping OpenVR frame preparation: render context or D3D9VR proxy unavailable");
         return;
     }
 
-    IDirect3DSurface9 *left_eye = nullptr, *right_eye = nullptr;
-    if (FAILED(get_texture_surface(current_render_context->dx_texture[LeftEye], &left_eye))) {
-        dbg("Failed to get left eye surface");
+    IDirect3DSurface9 *leftEye = nullptr, *rightEye = nullptr;
+    if (FAILED(get_texture_surface(current_render_context->dx_texture[LeftEye], &leftEye))) {
+        dbg("Failed to obtain left-eye render surface");
         return;
     }
-    if (FAILED(get_texture_surface(current_render_context->dx_texture[RightEye], &right_eye))) {
-        dbg("Failed to get right eye surface");
-        left_eye->Release();
+    if (FAILED(get_texture_surface(current_render_context->dx_texture[RightEye], &rightEye))) {
+        dbg("Failed to obtain right-eye render surface");
+        leftEye->Release();
         return;
     }
 
-    HRESULT prepareResult = D3D_OK;
+    HRESULT result = D3D_OK;
     if (dx::multiview_rendering_enabled()) {
         if (!current_render_context->dx_surface[LeftEye]) {
-            prepareResult = D3DERR_INVALIDCALL;
+            result = D3DERR_INVALIDCALL;
         } else {
-            IDirect3DSurface9* eyes[2] = { left_eye, right_eye };
-            prepareResult = g::d3d_vr->CopySurfaceLayers(current_render_context->dx_surface[LeftEye], eyes, 2);
+            IDirect3DSurface9* eyes[2] = { leftEye, rightEye };
+            result = g::d3d_vr->CopySurfaceLayers(
+                current_render_context->dx_surface[LeftEye], eyes, 2);
         }
     } else if (current_render_context->msaa != D3DMULTISAMPLE_NONE) {
-        if (!current_render_context->dx_surface[LeftEye] || !current_render_context->dx_surface[RightEye]) {
-            prepareResult = D3DERR_INVALIDCALL;
+        if (!current_render_context->dx_surface[LeftEye]
+         || !current_render_context->dx_surface[RightEye]) {
+            result = D3DERR_INVALIDCALL;
         } else {
-            prepareResult = dev->StretchRect(current_render_context->dx_surface[LeftEye], nullptr, left_eye, nullptr, D3DTEXF_NONE);
-            if (prepareResult == D3D_OK)
-                prepareResult = dev->StretchRect(current_render_context->dx_surface[RightEye], nullptr, right_eye, nullptr, D3DTEXF_NONE);
+            result = dev->StretchRect(current_render_context->dx_surface[LeftEye],
+                nullptr, leftEye, nullptr, D3DTEXF_NONE);
+            if (SUCCEEDED(result))
+                result = dev->StretchRect(current_render_context->dx_surface[RightEye],
+                    nullptr, rightEye, nullptr, D3DTEXF_NONE);
         }
     }
 
-    if (prepareResult != D3D_OK) {
-        dbg("Failed to prepare eye textures for OpenVR submission");
-        left_eye->Release();
-        right_eye->Release();
+    leftEye->Release();
+    rightEye->Release();
+
+    if (FAILED(result)) {
+        dbg(std::format("Failed to prepare OpenVR eye images (HRESULT 0x{:08X})",
+            static_cast<uint32_t>(result)));
         return;
     }
 
-    // DXVK must transition each submitted image to TRANSFER_SRC_OPTIMAL
-    // before the OpenVR compositor accesses the Vulkan queue.
-    const HRESULT leftTransfer = g::d3d_vr->TransferSurfaceForVR(left_eye);
-    const HRESULT rightTransfer = leftTransfer == D3D_OK
-        ? g::d3d_vr->TransferSurfaceForVR(right_eye)
-        : leftTransfer;
-
-    left_eye->Release();
-    right_eye->Release();
-
-    if (leftTransfer != D3D_OK || rightTransfer != D3D_OK) {
-        dbg("Failed to prepare eye image layouts for OpenVR submission");
-
-        // If the first eye was queued successfully, close an empty VR submit
-        // section so DXVK restores its layout before the next game frame.
-        if (leftTransfer == D3D_OK) {
-            m_framesPrepared = true;
-            discard_prepared_frames();
-        }
-        return;
-    }
-
+    // No Vulkan handles or OpenVR objects cross IPC. The x64 D3D9VR server
+    // transitions both images and submits them to SteamVR in one transaction.
     m_framesPrepared = true;
 }
 
 void OpenVR::discard_prepared_frames()
 {
-    if (!m_framesPrepared)
-        return;
-
-    if (!g::d3d_vr) {
-        dbg("Cannot restore prepared OpenVR image layouts because the D3D VR interface is unavailable");
-        return;
-    }
-
-    const HRESULT beginResult = g::d3d_vr->BeginVRSubmit();
-    if (FAILED(beginResult)) {
-        dbg(std::format("Failed to begin OpenVR frame cleanup (HRESULT 0x{:08X})", static_cast<uint32_t>(beginResult)));
-        return;
-    }
-
+    // Image layout transitions are now performed atomically by the x64
+    // SubmitOpenVRFrame operation, so an unsubmitted x86 frame needs no cleanup.
     m_framesPrepared = false;
-    const HRESULT endResult = g::d3d_vr->EndVRSubmit();
-    if (FAILED(endResult)) {
-        dbg(std::format("Failed to restore Vulkan image layouts after discarding OpenVR frame (HRESULT 0x{:08X})", static_cast<uint32_t>(endResult)));
-    }
 }
 
-void OpenVR::submit_frames_to_hmd(IDirect3DDevice9* dev)
+void OpenVR::submit_frames_to_hmd(IDirect3DDevice9*)
 {
-    if (!m_framesPrepared) {
-        dbg("Skipping OpenVR submission because eye textures were not prepared");
-        return;
-    }
-    if (!compositor || !g::d3d_vr) {
-        dbg("Skipping OpenVR submission because the compositor or D3D VR interface is unavailable");
-        discard_prepared_frames();
+    if (!m_framesPrepared || !g::d3d_vr || !current_render_context) {
+        m_framesPrepared = false;
         return;
     }
 
-    const HRESULT beginResult = g::d3d_vr->BeginVRSubmit();
-    if (FAILED(beginResult)) {
-        dbg(std::format("Failed to begin OpenVR submission (HRESULT 0x{:08X})", static_cast<uint32_t>(beginResult)));
-        return;
-    }
+    IDirect3DSurface9 *leftEye = nullptr, *rightEye = nullptr;
+    HRESULT result = get_texture_surface(current_render_context->dx_texture[LeftEye], &leftEye);
+    if (SUCCEEDED(result))
+        result = get_texture_surface(current_render_context->dx_texture[RightEye], &rightEye);
+
+    if (SUCCEEDED(result))
+        result = g::d3d_vr->SubmitOpenVRFrame(leftEye, rightEye);
+
+    if (leftEye)
+        leftEye->Release();
+    if (rightEye)
+        rightEye->Release();
+
     m_framesPrepared = false;
-
-    const auto leftSubmitResult = compositor->Submit(static_cast<vr::EVREye>(LeftEye), &openvr_texture[LeftEye]);
-    const auto rightSubmitResult = compositor->Submit(static_cast<vr::EVREye>(RightEye), &openvr_texture[RightEye]);
-    compositor->PostPresentHandoff();
-
-    const HRESULT endResult = g::d3d_vr->EndVRSubmit();
-
-    if (leftSubmitResult != vr::VRCompositorError_None) [[unlikely]] {
-        dbg(std::format("Left-eye compositor submission failed: {} (code {})", vr_compositor_error_str(leftSubmitResult), static_cast<int>(leftSubmitResult)));
-    }
-    if (rightSubmitResult != vr::VRCompositorError_None) [[unlikely]] {
-        dbg(std::format("Right-eye compositor submission failed: {} (code {})", vr_compositor_error_str(rightSubmitResult), static_cast<int>(rightSubmitResult)));
-    }
-    if (FAILED(endResult)) {
-        dbg(std::format("Failed to restore Vulkan image layouts after OpenVR submission (HRESULT 0x{:08X})", static_cast<uint32_t>(endResult)));
-    }
+    if (FAILED(result))
+        dbg(std::format("OpenVR frame submission failed (HRESULT 0x{:08X})",
+            static_cast<uint32_t>(result)));
 }
 
 bool OpenVR::update_vr_poses()
 {
-    if (!compositor || !g::d3d_vr) {
-        dbg("Could not update VR poses because the compositor or D3D VR interface is unavailable");
+    if (!g::d3d_vr)
         return false;
-    }
 
-    // WaitGetPoses might access the Vulkan queue so we need to lock it
-    const HRESULT lockResult = g::d3d_vr->LockSubmissionQueue();
-    if (FAILED(lockResult)) {
-        dbg(std::format("Could not lock the Vulkan queue before WaitGetPoses (HRESULT 0x{:08X})", static_cast<uint32_t>(lockResult)));
+    D3D9_OPENVR_FRAME_STATE next = {};
+    const HRESULT result = g::d3d_vr->AcquireOpenVRFrame(&next);
+    if (FAILED(result) || next.Version != 1)
         return false;
-    }
 
-    const auto poseResult = compositor->WaitGetPoses(poses, vr::k_unMaxTrackedDeviceCount, nullptr, 0);
-    const HRESULT unlockResult = g::d3d_vr->UnlockSubmissionQueue();
-    if (poseResult != vr::VRCompositorError_None) {
-        dbg(std::format("WaitGetPoses failed: {} (code {})", vr_compositor_error_str(poseResult), static_cast<int>(poseResult)));
-        return false;
-    }
-    if (FAILED(unlockResult)) {
-        dbg(std::format("Could not unlock the Vulkan queue after WaitGetPoses (HRESULT 0x{:08X})", static_cast<uint32_t>(unlockResult)));
-        return false;
-    }
-
-    auto pose = &poses[vr::k_unTrackedDeviceIndex_Hmd];
-    if (pose->bPoseIsValid) {
-        hmd_pose[LeftEye] = glm::inverse(m4_from_steamvr_matrix(pose->mDeviceToAbsoluteTracking));
-
-        if (g::cfg.threedof) {
+    m_frameState = next;
+    if (m_frameState.Flags & 1u) {
+        hmd_pose[LeftEye] = glm::inverse(
+            m4_from_steamvr_matrix(m_frameState.DeviceToAbsoluteTracking));
+        if (g::cfg.threedof)
             m4_to_3dof(hmd_pose[LeftEye]);
-        }
-
         hmd_pose[RightEye] = hmd_pose[LeftEye];
     }
 
-    projection[LeftEye] = get_projection_matrix(LeftEye, z_near, z_far, rbr::should_use_reverse_z_buffer());
-    projection[RightEye] = get_projection_matrix(RightEye, z_near, z_far, rbr::should_use_reverse_z_buffer());
+    eye_pos[LeftEye] = glm::inverse(m4_from_steamvr_matrix(m_frameState.EyeToHead[LeftEye]));
+    eye_pos[RightEye] = glm::inverse(m4_from_steamvr_matrix(m_frameState.EyeToHead[RightEye]));
+
+    projection[LeftEye] = get_projection_matrix(
+        LeftEye, z_near, z_far, rbr::should_use_reverse_z_buffer());
+    projection[RightEye] = get_projection_matrix(
+        RightEye, z_near, z_far, rbr::should_use_reverse_z_buffer());
 
     return true;
 }
 
 FrameTimingInfo OpenVR::get_frame_timing()
 {
-    FrameTimingInfo ret = { 0 };
-    if (!compositor) {
-        return ret;
-    }
+    FrameTimingInfo result = {};
+    if (!g::d3d_vr)
+        return result;
 
-    vr::Compositor_FrameTiming t {
-        .m_nSize = sizeof(vr::Compositor_FrameTiming)
-    };
-    if (compositor->GetFrameTiming(&t)) {
-        ret.gpu_pre_submit = t.m_flPreSubmitGpuMs;
-        ret.gpu_post_submit = t.m_flPostSubmitGpuMs;
-        ret.compositor_gpu = t.m_flCompositorRenderGpuMs;
-        ret.compositor_cpu = t.m_flCompositorRenderCpuMs;
-        ret.compositor_submit_frame = t.m_flSubmitFrameMs;
-        ret.gpu_total = t.m_flTotalRenderGpuMs;
-        ret.frame_interval = t.m_flClientFrameIntervalMs;
-        ret.cpu_present_call = t.m_flPresentCallCpuMs;
-        ret.cpu_wait_for_present = t.m_flWaitForPresentCpuMs;
-        ret.reprojection_flags = t.m_nReprojectionFlags;
-        ret.mispresented_frames = t.m_nNumMisPresented;
-        ret.dropped_frames = t.m_nNumDroppedFrames;
+    D3D9_OPENVR_FRAME_TIMING timing = {};
+    if (SUCCEEDED(g::d3d_vr->GetOpenVRFrameTiming(&timing))) {
+        result.gpu_pre_submit = timing.GpuPreSubmit;
+        result.gpu_post_submit = timing.GpuPostSubmit;
+        result.compositor_gpu = timing.CompositorGpu;
+        result.compositor_cpu = timing.CompositorCpu;
+        result.compositor_submit_frame = timing.CompositorSubmitFrame;
+        result.gpu_total = timing.GpuTotal;
+        result.frame_interval = timing.FrameInterval;
+        result.wait_for_present = timing.WaitForPresent;
+        result.cpu_present_call = timing.CpuPresentCall;
+        result.cpu_wait_for_present = timing.CpuWaitForPresent;
+        result.reprojection_flags = timing.ReprojectionFlags;
+        result.mispresented_frames = timing.MispresentedFrames;
+        result.dropped_frames = timing.DroppedFrames;
     }
-    return ret;
+    return result;
+}
+
+void OpenVR::reset_view()
+{
+    if (!g::d3d_vr || FAILED(g::d3d_vr->ResetOpenVRView()))
+        dbg("Could not reset OpenVR view through the x64 Bridge Server");
 }

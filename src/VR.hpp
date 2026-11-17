@@ -3,10 +3,9 @@
 #include "RenderTarget.hpp"
 #include "Util.hpp"
 
-#include <d3d9_vr.h>
+#include <d3d9vr.h>
 
 #include <d3d9.h>
-#include <openvr.h>
 #include <openxr.h>
 #include <optional>
 #include <unordered_map>

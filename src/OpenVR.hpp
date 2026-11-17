@@ -5,20 +5,14 @@
 
 class OpenVR : public VRInterface {
 private:
-    vr::IVRSystem* hmd;
-    vr::IVRCompositor* compositor;
-    vr::TrackedDevicePose_t poses[vr::k_unMaxTrackedDeviceCount];
-    vr::Texture_t openvr_texture[2];
-    D3D9_TEXTURE_VR_DESC dxvk_texture[2];
+    D3D9_OPENVR_FRAME_STATE m_frameState = {};
     bool m_framesPrepared = false;
-    bool m_textureDescriptorsValid = false;
 
-    constexpr M4 get_projection_matrix(RenderTarget eye, float z_near, float z_far, bool reverse_z);
+    M4 get_projection_matrix(RenderTarget eye, float z_near, float z_far, bool reverse_z) const;
 
 public:
     OpenVR();
-    virtual ~OpenVR()
-    {
+    ~OpenVR() override {
         shutdown_vr();
     }
 
@@ -30,17 +24,10 @@ public:
     bool update_vr_poses() override;
     void submit_frames_to_hmd(IDirect3DDevice9* dev) override;
     FrameTimingInfo get_frame_timing() override;
-    void reset_view() override
-    {
-        if (auto* chaperone = vr::VRChaperone()) {
-            chaperone->ResetZeroPose(vr::ETrackingUniverseOrigin::TrackingUniverseSeated);
-        } else {
-            dbg("Could not reset VR view because the OpenVR chaperone interface is unavailable");
-        }
-    }
-    VRRuntime get_runtime_type() const override
-    {
+    void reset_view() override;
+
+    VRRuntime get_runtime_type() const override {
         return OPENVR;
     }
-    virtual void set_render_context(const std::string& name) override;
+    void set_render_context(const std::string& name) override;
 };

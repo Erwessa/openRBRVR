@@ -1192,9 +1192,10 @@ namespace dx {
                     MessageBoxA(nullptr, e.what(), "OpenXR init failed", MB_OK);
                 }
             } else {
-                // OpenVR must be initialized before creating the d3d device
-                // otherwise it cause a crash when the Reshade VK layer is used
-                // while SteamVR is already running and vrclient.dll loaded
+                // The DXVK-Remix runtime performs OpenVR's Vulkan extension
+                // discovery in the x64 Bridge Server while creating its instance.
+                // Keep the VR object setup before the original D3D9 factory call;
+                // the x86 plugin itself must never load or initialize OpenVR.
                 try {
                     g::vr = new OpenVR();
                 } catch (const std::runtime_error& e) {
