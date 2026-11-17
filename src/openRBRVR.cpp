@@ -97,6 +97,12 @@ openRBRVR::~openRBRVR()
 {
     if (g::vr) {
         delete g::vr;
+        g::vr = nullptr;
+    }
+
+    // RBR may request a new plugin instance after destroying the old one.
+    if (g::openrbrvr == this) {
+        g::openrbrvr = nullptr;
     }
 }
 
