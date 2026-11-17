@@ -113,7 +113,7 @@ class VRInterface {
 protected:
     std::unordered_map<std::string, RenderContext> render_contexts;
     std::string current_render_context_name;
-    RenderContext* current_render_context;
+    RenderContext* current_render_context = nullptr;
 
     M4 hmd_pose[4];
     M4 eye_pos[4];
