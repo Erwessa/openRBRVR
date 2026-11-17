@@ -18,10 +18,8 @@ namespace g {
     static bool quads_created = false;
 }
 
-VRInterface::~VRInterface()
+void VRInterface::release_shared_vertex_buffers()
 {
-    // These managed buffers are shared by the active VR interface. Release
-    // them when that interface is destroyed, including partial initialization.
     if (g::companion_window_vertex_buf_menu) {
         g::companion_window_vertex_buf_menu->Release();
         g::companion_window_vertex_buf_menu = nullptr;
@@ -41,6 +39,11 @@ VRInterface::~VRInterface()
         g::overlay_border_quad = nullptr;
     }
     g::quads_created = false;
+}
+
+VRInterface::~VRInterface()
+{
+    release_shared_vertex_buffers();
 }
 
 bool VRInterface::is_using_quad_view_rendering() const
