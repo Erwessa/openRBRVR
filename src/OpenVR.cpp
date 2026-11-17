@@ -136,6 +136,7 @@ OpenVR::OpenVR()
 void OpenVR::set_render_context(const std::string& name)
 {
     VRInterface::set_render_context(name);
+    m_textureDescriptorsValid = false;
 
     IDirect3DSurface9 *left_eye, *right_eye;
     if (current_render_context->dx_texture[LeftEye]->GetSurfaceLevel(0, &left_eye) != D3D_OK) {
@@ -167,11 +168,16 @@ void OpenVR::set_render_context(const std::string& name)
     openvr_texture[RightEye].handle = reinterpret_cast<void*>(&dxvk_texture[RightEye]);
     openvr_texture[RightEye].eType = vr::TextureType_Vulkan;
     openvr_texture[RightEye].eColorSpace = vr::ColorSpace_Auto;
+    m_textureDescriptorsValid = true;
 }
 
 void OpenVR::prepare_frames_for_hmd(IDirect3DDevice9* dev)
 {
     m_framesPrepared = false;
+    if (!m_textureDescriptorsValid) {
+        dbg("Skipping OpenVR frame preparation because eye texture descriptors are invalid");
+        return;
+    }
 
     IDirect3DSurface9 *left_eye = nullptr, *right_eye = nullptr;
     if (current_render_context->dx_texture[LeftEye]->GetSurfaceLevel(0, &left_eye) != D3D_OK) {
