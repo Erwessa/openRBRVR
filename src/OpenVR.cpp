@@ -3,6 +3,26 @@
 #include "Dx.hpp"
 #include "Globals.hpp"
 
+static HRESULT get_texture_surface(IDirect3DTexture9* texture, IDirect3DSurface9** surface)
+{
+    if (!surface)
+        return E_POINTER;
+
+    *surface = nullptr;
+    if (!texture)
+        return D3DERR_INVALIDCALL;
+
+    const HRESULT result = texture->GetSurfaceLevel(0, surface);
+    if (FAILED(result) || !*surface) {
+        if (*surface) {
+            (*surface)->Release();
+            *surface = nullptr;
+        }
+        return FAILED(result) ? result : E_FAIL;
+    }
+    return result;
+}
+
 static constexpr std::string vr_compositor_error_str(vr::VRCompositorError e)
 {
     switch (e) {
@@ -194,12 +214,12 @@ void OpenVR::set_render_context(const std::string& name)
     VRInterface::set_render_context(name);
     m_textureDescriptorsValid = false;
 
-    IDirect3DSurface9 *left_eye, *right_eye;
-    if (current_render_context->dx_texture[LeftEye]->GetSurfaceLevel(0, &left_eye) != D3D_OK) {
+    IDirect3DSurface9 *left_eye = nullptr, *right_eye = nullptr;
+    if (FAILED(get_texture_surface(current_render_context->dx_texture[LeftEye], &left_eye))) {
         dbg("Failed to get left eye surface");
         return;
     }
-    if (current_render_context->dx_texture[RightEye]->GetSurfaceLevel(0, &right_eye) != D3D_OK) {
+    if (FAILED(get_texture_surface(current_render_context->dx_texture[RightEye], &right_eye))) {
         dbg("Failed to get right eye surface");
         left_eye->Release();
         return;
@@ -254,11 +274,11 @@ void OpenVR::prepare_frames_for_hmd(IDirect3DDevice9* dev)
     }
 
     IDirect3DSurface9 *left_eye = nullptr, *right_eye = nullptr;
-    if (current_render_context->dx_texture[LeftEye]->GetSurfaceLevel(0, &left_eye) != D3D_OK) {
+    if (FAILED(get_texture_surface(current_render_context->dx_texture[LeftEye], &left_eye))) {
         dbg("Failed to get left eye surface");
         return;
     }
-    if (current_render_context->dx_texture[RightEye]->GetSurfaceLevel(0, &right_eye) != D3D_OK) {
+    if (FAILED(get_texture_surface(current_render_context->dx_texture[RightEye], &right_eye))) {
         dbg("Failed to get right eye surface");
         left_eye->Release();
         return;
