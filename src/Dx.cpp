@@ -191,7 +191,7 @@ namespace dx {
         // Nobody will want to edit BTB shaders :D
         g::base_game_shaders.push_back(shader);
 
-        if (!g::cfg.experimental.disable_multiview) {
+        if (multiview_supported()) {
             IDirect3DVertexShader9* modified_shader;
             const auto ret = g::hooks::create_vertex_shader.call(g::d3d_dev, bytecode.data(), &modified_shader);
             if (patch_spirv_shader_registers(modified_shader)) {
@@ -229,7 +229,7 @@ namespace dx {
             (*ppShader)->AddRef();
         }
 
-        if (!g::cfg.experimental.disable_multiview) {
+        if (multiview_supported()) {
             // Determine shader bytecode length. Valid shaders end at double word with value 65535.
             const DWORD* pp;
             for (pp = pFunction; *pp != 65535; ++pp) { }
@@ -253,7 +253,7 @@ namespace dx {
         }
 
         i++;
-        if (!g::cfg.experimental.disable_multiview && i == 40) {
+        if (multiview_supported() && i == 40) {
             // Base game shaders are loaded, patch them for multiview and run the SPIR-V optimizer
 
             // Maximum number of float constants that is discovered to be present in a shader.
@@ -1009,7 +1009,15 @@ namespace dx {
         }
 
         *ppReturnedDeviceInterface = dev;
-        Direct3DCreateVR(dev, &g::d3d_vr);
+        g::d3d_vr = nullptr;
+        const auto vr_result = Direct3DCreateVR(dev, &g::d3d_vr);
+        if (FAILED(vr_result)) {
+            if (g::d3d_vr) {
+                g::d3d_vr->Release();
+                g::d3d_vr = nullptr;
+            }
+            dbg(std::format("Direct3DCreateVR failed: 0x{:08X}", static_cast<uint32_t>(vr_result)));
+        }
 
         dev->SetRenderState(D3DRS_MULTISAMPLEANTIALIAS, 1);
         for (auto i = D3DVERTEXTEXTURESAMPLER0; i <= D3DVERTEXTEXTURESAMPLER3; ++i) {
