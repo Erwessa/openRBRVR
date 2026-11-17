@@ -584,7 +584,12 @@ void OpenXR::init(IDirect3DDevice9* dev, IDirect3DVR9** vrdev, uint32_t companio
     if (auto ret = cross_api_fence.fence->CreateSharedHandle(nullptr, GENERIC_ALL, nullptr, &cross_api_fence.shared_handle); ret != D3D_OK) {
         throw std::runtime_error(std::format("Failed to create shared handle: {}", ret));
     }
-    g::d3d_vr->ImportFence(cross_api_fence.shared_handle, cross_api_fence.value);
+    if (const HRESULT importResult = g::d3d_vr->ImportFence(
+        cross_api_fence.shared_handle, cross_api_fence.value); FAILED(importResult)) {
+        throw std::runtime_error(std::format(
+            "Failed to import the D3D11 shared fence into the x64 Bridge runtime: 0x{:08X}",
+            static_cast<uint32_t>(importResult)));
+    }
 
     for (const auto& gfx : g::cfg.gfx) {
         auto supersampling = gfx.second.supersampling;
@@ -1087,10 +1092,16 @@ void OpenXR::synchronize_graphics_apis(bool wait_for_cpu)
 {
     cross_api_fence.value += 1;
 
-    g::d3d_vr->Flush();
-    g::d3d_vr->LockSubmissionQueue();
-    g::d3d_vr->SignalFence(cross_api_fence.value);
-    g::d3d_vr->UnlockSubmissionQueue();
+    if (const HRESULT flushResult = g::d3d_vr->Flush(); FAILED(flushResult)) {
+        dbg(std::format("Failed to flush the x64 Bridge runtime: 0x{:08X}",
+            static_cast<uint32_t>(flushResult)));
+        return;
+    }
+    if (const HRESULT signalResult = g::d3d_vr->SignalFence(cross_api_fence.value); FAILED(signalResult)) {
+        dbg(std::format("Failed to signal the shared OpenXR fence: 0x{:08X}",
+            static_cast<uint32_t>(signalResult)));
+        return;
+    }
 
     if (wait_for_cpu) [[unlikely]] {
         HANDLE evt = CreateEventEx(nullptr, "Flush event", 0, EVENT_ALL_ACCESS);
