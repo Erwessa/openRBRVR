@@ -1106,22 +1106,26 @@ namespace dx {
 
     IDirect3D9* __stdcall Direct3DCreate9(UINT SDKVersion)
     {
-        if (g::cfg.runtime == OPENXR) {
-            // OpenXR must be initialized before calling Direct3DCreate9
-            // because it will query extensions when initializing DXVK
-            try {
-                g::vr = new OpenXR();
-            } catch (const std::runtime_error& e) {
-                MessageBoxA(nullptr, e.what(), "OpenXR init failed", MB_OK);
-            }
-        } else {
-            // OpenVR must be initialized before creating the d3d device
-            // otherwise it cause a crash when the Reshade VK layer is used
-            // while SteamVR is already running and vrclient.dll loaded
-            try {
-                g::vr = new OpenVR();
-            } catch (const std::runtime_error& e) {
-                MessageBoxA(nullptr, e.what(), "OpenVR init failed", MB_OK);
+        // The plugin keeps one global VR runtime and one global D3D9 device
+        // hook set. Do not replace an existing runtime on repeated factory calls.
+        if (!g::vr) {
+            if (g::cfg.runtime == OPENXR) {
+                // OpenXR must be initialized before calling Direct3DCreate9
+                // because it will query extensions when initializing DXVK
+                try {
+                    g::vr = new OpenXR();
+                } catch (const std::runtime_error& e) {
+                    MessageBoxA(nullptr, e.what(), "OpenXR init failed", MB_OK);
+                }
+            } else {
+                // OpenVR must be initialized before creating the d3d device
+                // otherwise it cause a crash when the Reshade VK layer is used
+                // while SteamVR is already running and vrclient.dll loaded
+                try {
+                    g::vr = new OpenVR();
+                } catch (const std::runtime_error& e) {
+                    MessageBoxA(nullptr, e.what(), "OpenVR init failed", MB_OK);
+                }
             }
         }
 
@@ -1134,12 +1138,24 @@ namespace dx {
             }
             return nullptr;
         }
+
         auto d3d_vtbl = get_vtable<IDirect3D9Vtbl>(d3d);
-        try {
-            g::hooks::create_device = Hook(d3d_vtbl->CreateDevice, CreateDevice);
-        } catch (const std::runtime_error& e) {
-            dbg(e.what());
-            MessageBoxA(nullptr, e.what(), "Hooking failed", MB_OK);
+        // The CreateDevice implementation is normally shared by D3D9 factory
+        // instances. Keep its existing MinHook trampoline instead of removing
+        // and recreating the global hook for every Direct3DCreate9 call.
+        if (g::hooks::create_device.src) {
+            if (g::hooks::create_device.src != d3d_vtbl->CreateDevice) {
+                dbg("A different D3D9 CreateDevice implementation is already hooked");
+                d3d->Release();
+                return nullptr;
+            }
+        } else {
+            try {
+                g::hooks::create_device = Hook(d3d_vtbl->CreateDevice, CreateDevice);
+            } catch (const std::runtime_error& e) {
+                dbg(e.what());
+                MessageBoxA(nullptr, e.what(), "Hooking failed", MB_OK);
+            }
         }
         return d3d;
     }
