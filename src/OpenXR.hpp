@@ -69,9 +69,9 @@ private:
     PFN_xrConvertWin32PerformanceCounterToTimeKHR xr_convert_win32_performance_counter_to_time;
 
     struct {
-        uint64_t value;
-        ID3D11Fence* fence;
-        HANDLE shared_handle;
+        uint64_t value = 0;
+        ID3D11Fence* fence = nullptr;
+        HANDLE shared_handle = nullptr;
     } cross_api_fence;
 
     std::vector<char> device_extensions;

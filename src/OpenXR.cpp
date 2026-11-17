@@ -590,6 +590,8 @@ void OpenXR::init(IDirect3DDevice9* dev, IDirect3DVR9** vrdev, uint32_t companio
             "Failed to import the D3D11 shared fence into the x64 Bridge runtime: 0x{:08X}",
             static_cast<uint32_t>(importResult)));
     }
+    CloseHandle(cross_api_fence.shared_handle);
+    cross_api_fence.shared_handle = nullptr;
 
     for (const auto& gfx : g::cfg.gfx) {
         auto supersampling = gfx.second.supersampling;
@@ -1090,6 +1092,9 @@ void OpenXR::prepare_frames_for_hmd(IDirect3DDevice9* dev)
 
 void OpenXR::synchronize_graphics_apis(bool wait_for_cpu)
 {
+    if (!g::d3d_vr || !cross_api_fence.fence)
+        return;
+
     cross_api_fence.value += 1;
 
     if (const HRESULT flushResult = g::d3d_vr->Flush(); FAILED(flushResult)) {
@@ -1608,9 +1613,17 @@ void OpenXR::shutdown_vr()
         glove_texture->Release();
         glove_texture = nullptr;
     }
-    synchronize_graphics_apis(true);
-    g::d3d_vr->WaitDeviceIdle(true);
-    cross_api_fence.fence->Release();
+    if (cross_api_fence.fence) {
+        synchronize_graphics_apis(true);
+        if (g::d3d_vr)
+            g::d3d_vr->WaitDeviceIdle(true);
+        cross_api_fence.fence->Release();
+        cross_api_fence.fence = nullptr;
+    }
+    if (cross_api_fence.shared_handle) {
+        CloseHandle(cross_api_fence.shared_handle);
+        cross_api_fence.shared_handle = nullptr;
+    }
 
     if (g::cfg.openxr_motion_compensation) {
         // TODO: More cleanup?
