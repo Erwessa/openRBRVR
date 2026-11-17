@@ -1032,6 +1032,35 @@ namespace dx {
         } catch (const std::runtime_error& e) {
             dbg(e.what());
             MessageBoxA(hFocusWindow, e.what(), "Hooking failed", MB_OK);
+
+            // OpenVR cannot run without the complete D3D hook set. Roll back
+            // every device hook and fail device creation instead of exposing
+            // a partially hooked device to the game.
+            if (!g::vr || g::vr->get_runtime_type() == OPENVR) {
+                g::hooks::end_state_block.reset();
+                g::hooks::clear.reset();
+                g::hooks::set_render_state.reset();
+                g::hooks::draw_primitive.reset();
+                g::hooks::draw_indexed_primitive.reset();
+                g::hooks::set_vertex_shader.reset();
+                g::hooks::get_vertex_shader.reset();
+                g::hooks::create_vertex_shader.reset();
+                g::hooks::present.reset();
+                g::hooks::set_transform.reset();
+                g::hooks::set_vertex_shader_constant_f.reset();
+
+                if (g::vr) {
+                    delete g::vr;
+                    g::vr = nullptr;
+                } else if (g::d3d_vr) {
+                    g::d3d_vr->Release();
+                    g::d3d_vr = nullptr;
+                }
+
+                *ppReturnedDeviceInterface = nullptr;
+                dev->Release();
+                return E_FAIL;
+            }
         }
 
         g::d3d_dev = dev;
