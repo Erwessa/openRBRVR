@@ -253,12 +253,12 @@ static void render_texture(
     IDirect3DTexture9* tex,
     IDirect3DVertexBuffer9* vbuf)
 {
-    IDirect3DVertexShader9* vs;
-    IDirect3DPixelShader9* ps;
+    IDirect3DVertexShader9* vs = nullptr;
+    IDirect3DPixelShader9* ps = nullptr;
     D3DMATRIX origProj, origProj2, origView, origView2, origWorld;
 
-    dev->GetVertexShader(&vs);
-    dev->GetPixelShader(&ps);
+    const HRESULT getVertexShaderResult = dev->GetVertexShader(&vs);
+    const HRESULT getPixelShaderResult = dev->GetPixelShader(&ps);
 
     dev->SetVertexShader(nullptr);
     dev->SetPixelShader(nullptr);
@@ -279,8 +279,8 @@ static void render_texture(
 
     dev->BeginScene();
 
-    IDirect3DBaseTexture9* origTex;
-    dev->GetTexture(0, &origTex);
+    IDirect3DBaseTexture9* origTex = nullptr;
+    const HRESULT getTextureResult = dev->GetTexture(0, &origTex);
 
     dev->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
     dev->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
@@ -303,9 +303,19 @@ static void render_texture(
     dev->EndScene();
 
     dev->SetRenderState(D3DRS_ZENABLE, true);
-    dev->SetTexture(0, origTex);
-    dev->SetVertexShader(vs);
-    dev->SetPixelShader(ps);
+    if (SUCCEEDED(getTextureResult))
+        dev->SetTexture(0, origTex);
+    if (SUCCEEDED(getVertexShaderResult))
+        dev->SetVertexShader(vs);
+    if (SUCCEEDED(getPixelShaderResult))
+        dev->SetPixelShader(ps);
+
+    if (origTex)
+        origTex->Release();
+    if (vs)
+        vs->Release();
+    if (ps)
+        ps->Release();
     dev->SetTransform(D3DTS_PROJECTION_LEFT, &origProj);
     dev->SetTransform(D3DTS_VIEW_LEFT, &origView);
     if (dx::multiview_rendering_enabled()) {
