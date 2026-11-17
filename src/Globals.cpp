@@ -19,8 +19,8 @@ namespace g {
     bool vr_error;
     std::chrono::steady_clock::time_point frame_start;
     std::optional<RenderTarget> current_2d_render_target;
-    IDirect3DSurface9* original_render_target;
-    IDirect3DSurface9* original_depth_stencil_target;
+    IDirect3DSurface9* original_render_target = nullptr;
+    IDirect3DSurface9* original_depth_stencil_target = nullptr;
     uint8_t* btb_track_status_ptr;
     SeatMovement seat_movement_request;
     bool seat_position_loaded;
