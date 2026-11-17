@@ -138,6 +138,7 @@ public:
     virtual void render_hands(IDirect3DDevice9* dev, RenderTarget target) { }
     virtual bool supports_hand_tracking() const { return false; }
     virtual std::string get_hand_tracking_status() const { return "Unavailable"; }
+    virtual void discard_prepared_frames() { }
     virtual void prepare_frames_for_hmd(IDirect3DDevice9* dev) = 0;
     virtual void submit_frames_to_hmd(IDirect3DDevice9* dev) = 0;
     bool is_using_quad_view_rendering() const;
