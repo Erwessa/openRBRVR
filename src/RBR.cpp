@@ -592,6 +592,14 @@ namespace rbr {
             return;
         }
 
+        if (g::vr && (!g::original_render_target || !g::original_depth_stencil_target)) [[unlikely]] {
+            dbg("Could not capture original D3D9 render state; falling back to regular RBR rendering");
+            g::vr_error = true;
+            g::frame_start = std::chrono::steady_clock::now();
+            g::hooks::render.call(p);
+            return;
+        }
+
         if (g::vr) [[likely]] {
             // UpdateVRPoses should be called as close to rendering as possible
             if (!g::vr->update_vr_poses()) {
