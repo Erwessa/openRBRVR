@@ -272,6 +272,10 @@ void OpenVR::prepare_frames_for_hmd(IDirect3DDevice9* dev)
         dbg("Skipping OpenVR frame preparation because eye texture descriptors are invalid");
         return;
     }
+    if (!current_render_context || !dev || !g::d3d_vr) {
+        dbg("Skipping OpenVR frame preparation because the render context or D3D VR interface is unavailable");
+        return;
+    }
 
     IDirect3DSurface9 *left_eye = nullptr, *right_eye = nullptr;
     if (FAILED(get_texture_surface(current_render_context->dx_texture[LeftEye], &left_eye))) {
@@ -286,12 +290,20 @@ void OpenVR::prepare_frames_for_hmd(IDirect3DDevice9* dev)
 
     HRESULT prepareResult = D3D_OK;
     if (dx::multiview_rendering_enabled()) {
-        IDirect3DSurface9* eyes[2] = { left_eye, right_eye };
-        prepareResult = g::d3d_vr->CopySurfaceLayers(current_render_context->dx_surface[LeftEye], eyes, 2);
+        if (!current_render_context->dx_surface[LeftEye]) {
+            prepareResult = D3DERR_INVALIDCALL;
+        } else {
+            IDirect3DSurface9* eyes[2] = { left_eye, right_eye };
+            prepareResult = g::d3d_vr->CopySurfaceLayers(current_render_context->dx_surface[LeftEye], eyes, 2);
+        }
     } else if (current_render_context->msaa != D3DMULTISAMPLE_NONE) {
-        prepareResult = dev->StretchRect(current_render_context->dx_surface[LeftEye], nullptr, left_eye, nullptr, D3DTEXF_NONE);
-        if (prepareResult == D3D_OK)
-            prepareResult = dev->StretchRect(current_render_context->dx_surface[RightEye], nullptr, right_eye, nullptr, D3DTEXF_NONE);
+        if (!current_render_context->dx_surface[LeftEye] || !current_render_context->dx_surface[RightEye]) {
+            prepareResult = D3DERR_INVALIDCALL;
+        } else {
+            prepareResult = dev->StretchRect(current_render_context->dx_surface[LeftEye], nullptr, left_eye, nullptr, D3DTEXF_NONE);
+            if (prepareResult == D3D_OK)
+                prepareResult = dev->StretchRect(current_render_context->dx_surface[RightEye], nullptr, right_eye, nullptr, D3DTEXF_NONE);
+        }
     }
 
     if (prepareResult != D3D_OK) {
@@ -333,6 +345,10 @@ void OpenVR::submit_frames_to_hmd(IDirect3DDevice9* dev)
         return;
     }
     m_framesPrepared = false;
+    if (!compositor || !g::d3d_vr) {
+        dbg("Skipping OpenVR submission because the compositor or D3D VR interface is unavailable");
+        return;
+    }
 
     g::d3d_vr->BeginVRSubmit();
     if (auto e = compositor->Submit(static_cast<vr::EVREye>(LeftEye), &openvr_texture[LeftEye]); e != vr::VRCompositorError_None) [[unlikely]] {
