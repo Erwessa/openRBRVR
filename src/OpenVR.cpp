@@ -275,6 +275,7 @@ bool OpenVR::update_vr_poses()
     g::d3d_vr->LockSubmissionQueue();
     if (auto e = compositor->WaitGetPoses(poses, vr::k_unMaxTrackedDeviceCount, nullptr, 0); e != vr::VRCompositorError_None) {
         dbg("Could not get VR poses");
+        g::d3d_vr->UnlockSubmissionQueue();
         return false;
     }
     g::d3d_vr->UnlockSubmissionQueue();
