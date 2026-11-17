@@ -1278,10 +1278,9 @@ namespace dx {
                     MessageBoxA(nullptr, e.what(), "OpenXR init failed", MB_OK);
                 }
             } else {
-                // The DXVK-Remix runtime performs OpenVR's Vulkan extension
-                // discovery in the x64 Bridge Server while creating its instance.
-                // Keep the VR object setup before the original D3D9 factory call;
-                // the x86 plugin itself must never load or initialize OpenVR.
+                // Initialize the x86 OpenVR Background session before the
+                // original D3D9 factory call. The x64 Bridge Server owns the
+                // independent Scene session, compositor and Vulkan extension discovery.
                 try {
                     g::vr = new OpenVR();
                 } catch (const std::runtime_error& e) {
