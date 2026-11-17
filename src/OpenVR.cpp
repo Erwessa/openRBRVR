@@ -1,4 +1,6 @@
 #include "OpenVR.hpp"
+
+#include <stdexcept>
 #include "Config.hpp"
 #include "Dx.hpp"
 #include "Globals.hpp"
