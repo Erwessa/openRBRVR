@@ -94,6 +94,7 @@ bool VRInterface::create_companion_window_buffer(IDirect3DDevice9* dev)
     // clang-format on
     if (g::companion_window_vertex_buf_3d) {
         g::companion_window_vertex_buf_3d->Release();
+        g::companion_window_vertex_buf_3d = nullptr;
     }
     if (!create_vertex_buffer(dev, quad, 4, &g::companion_window_vertex_buf_3d)) {
         dbg("Could not create vertex buffer for companion window");
