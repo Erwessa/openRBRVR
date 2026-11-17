@@ -986,6 +986,13 @@ namespace dx {
 
         if (FAILED(ret)) {
             dbg("D3D initialization failed: CreateDevice");
+
+            // OpenVR is initialized before CreateDevice; discard it if device creation fails.
+            if (g::vr && g::vr->get_runtime_type() == OPENVR) {
+                delete g::vr;
+                g::vr = nullptr;
+            }
+            g::d3d_vr = nullptr;
             return ret;
         }
 
