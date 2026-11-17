@@ -463,11 +463,15 @@ namespace rbr {
             }
         }
 
-        if (g::game_mode == GameMode::MainMenu && !g::car_textures.empty()) [[unlikely]] {
+        if (g::game_mode == GameMode::MainMenu) [[unlikely]] {
             // Clear saved car textures if we're in the menu
             // Not sure if this is needed, but better be safe than sorry,
             // the car textures will be reloaded when loading the stage.
-            g::car_textures.clear();
+            if (!g::car_textures.empty()) {
+                g::car_textures.clear();
+            }
+
+            // Shader COM references are independent of the car texture cache.
             dx::free_btb_shaders();
         }
 
