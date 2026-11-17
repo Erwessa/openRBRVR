@@ -55,6 +55,7 @@ pub fn build(b: *std.Build) void {
     dll.addIncludePath(.{ .cwd_relative = "thirdparty" });
     dll.addIncludePath(.{ .cwd_relative = "thirdparty/dxvk/include/vulkan/include" });
     dll.addIncludePath(.{ .cwd_relative = "thirdparty/dxvk/src/d3d9" });
+    dll.addIncludePath(.{ .cwd_relative = "thirdparty/dxvk/public/include" });
     dll.addIncludePath(.{ .cwd_relative = "thirdparty/glm" });
     dll.addIncludePath(.{ .cwd_relative = "thirdparty/minhook/include" });
     dll.addIncludePath(.{ .cwd_relative = "thirdparty/openvr" });
