@@ -223,6 +223,10 @@ void OpenVR::set_render_context(const std::string& name)
 {
     VRInterface::set_render_context(name);
     m_textureDescriptorsValid = false;
+    if (!g::d3d_vr) {
+        dbg("Cannot update OpenVR texture descriptors because the D3D VR interface is unavailable");
+        return;
+    }
 
     IDirect3DSurface9 *left_eye = nullptr, *right_eye = nullptr;
     if (FAILED(get_texture_surface(current_render_context->dx_texture[LeftEye], &left_eye))) {
