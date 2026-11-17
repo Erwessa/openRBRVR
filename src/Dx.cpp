@@ -571,12 +571,14 @@ namespace dx {
         ret = g::hooks::present.call(g::d3d_dev, pSourceRect, pDestRect, hDestWindowOverride, pDirtyRegion);
         g::current_frames++;
 
-        for (auto& it : g::patched_btb_shaders) {
-            if (!optimize_spirv_shader(it.first)) {
-                dbg("Shader optimization failed!");
-                g::failed_multiview_btb_shader_optimizations++;
+        if (g::d3d_vr) {
+            for (auto& it : g::patched_btb_shaders) {
+                if (!optimize_spirv_shader(it.first)) {
+                    dbg("Shader optimization failed!");
+                    g::failed_multiview_btb_shader_optimizations++;
+                }
+                g::optimized_btb_shaders.insert(it.first);
             }
-            g::optimized_btb_shaders.insert(it.first);
         }
         g::patched_btb_shaders.clear();
 
@@ -1044,6 +1046,12 @@ namespace dx {
         g::current_2d_render_target.reset();
         g::vr_render_target.reset();
         g::vr_error = false;
+
+        // Shader patch bookkeeping is frame/device state. Do not carry a
+        // partially patched or pending optimization batch across Reset.
+        g::patched_btb_shaders.clear();
+        g::optimized_btb_shaders.clear();
+        g::deferred_shader_constants.clear();
 
         const HRESULT resetResult = g::hooks::reset.call(This, pPresentationParameters);
         if (FAILED(resetResult)) {
