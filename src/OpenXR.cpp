@@ -1615,13 +1615,14 @@ void OpenXR::shutdown_vr()
     m_shutdown = true;
 
     hand_tracking.shutdown();
-    hand_mesh.clear();
 
     if (cross_api_fence.fence)
         synchronize_graphics_apis(true);
 
     if (g::d3d_vr)
         g::d3d_vr->WaitDeviceIdle(true);
+
+    hand_mesh.clear();
 
     if (glove_texture) {
         glove_texture->Release();
