@@ -77,6 +77,8 @@ void OpenVR::init(IDirect3DDevice9* dev, IDirect3DVR9** vrdev,
 {
     if (!dev || !vrdev || !*vrdev || !g::d3d_vr)
         throw std::runtime_error("OpenVR initialization failed: D3D9VR proxy is unavailable");
+    if (!render_contexts.empty() || current_render_context)
+        throw std::runtime_error("OpenVR initialization refused while old device resources remain");
 
     const HRESULT sceneResult = g::d3d_vr->InitializeOpenVRScene();
     if (FAILED(sceneResult))
@@ -118,7 +120,7 @@ void OpenVR::init(IDirect3DDevice9* dev, IDirect3DVR9** vrdev,
     dbg("VR init successful\n");
 }
 
-void OpenVR::shutdown_vr()
+void OpenVR::shutdown_device_resources()
 {
     discard_prepared_frames();
 
@@ -153,21 +155,30 @@ void OpenVR::shutdown_vr()
         }
     }
 
+    current_render_context = nullptr;
+    current_render_context_name.clear();
     render_contexts.clear();
+    release_shared_vertex_buffers();
 
     if (g::d3d_vr) {
         g::d3d_vr->Release();
         g::d3d_vr = nullptr;
     }
 
-    // Release the x86 Background session in the process that initialized it.
+    m_frameState = {};
+    m_framesPrepared = false;
+}
+
+void OpenVR::shutdown_vr()
+{
+    shutdown_device_resources();
+
+    // The x86 Background session belongs to the plugin process and survives
+    // device Reset, but is released during final runtime shutdown.
     if (m_backgroundSessionInitialized) {
         vr::VR_Shutdown();
         m_backgroundSessionInitialized = false;
     }
-
-    m_frameState = {};
-    m_framesPrepared = false;
 }
 
 void OpenVR::set_render_context(const std::string& name)
