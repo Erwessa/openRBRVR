@@ -102,8 +102,7 @@ void OpenVR::init(IDirect3DDevice9* dev, IDirect3DVR9** vrdev, uint32_t companio
         set_render_context("default");
     } catch (const std::runtime_error& e) {
         dbg(e.what());
-        MessageBoxA(nullptr, e.what(), "VR init error", MB_OK);
-        return;
+        throw;
     }
 
     dbg("VR init successful\n");
