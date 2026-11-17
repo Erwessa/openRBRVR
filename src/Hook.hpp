@@ -21,7 +21,12 @@ struct Hook {
         if (MH_CreateHook(reinterpret_cast<void*>(src), reinterpret_cast<void*>(tgt), reinterpret_cast<void**>(&call)) != MH_OK) {
             throw std::runtime_error("Could not hook");
         }
-        enable();
+        try {
+            enable();
+        } catch (...) {
+            reset();
+            throw;
+        }
     }
     void enable()
     {
