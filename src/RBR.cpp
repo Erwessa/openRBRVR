@@ -710,8 +710,12 @@ namespace rbr {
                 } else {
                     dbg("Failed to set 2D render target");
                     g::current_2d_render_target = std::nullopt;
-                    g::d3d_dev->SetRenderTarget(0, g::original_render_target);
-                    g::d3d_dev->SetDepthStencilSurface(g::original_depth_stencil_target);
+                    if (g::original_render_target && g::d3d_dev->SetRenderTarget(0, g::original_render_target) != D3D_OK) {
+                        dbg("Failed to restore original render target after 2D setup failure");
+                    }
+                    if (g::original_depth_stencil_target && g::d3d_dev->SetDepthStencilSurface(g::original_depth_stencil_target) != D3D_OK) {
+                        dbg("Failed to restore original depth stencil surface after 2D setup failure");
+                    }
                 }
 
                 if (menu_scene_active) {
@@ -730,8 +734,12 @@ namespace rbr {
                     } else {
                         dbg("Failed to set 2D render target");
                         g::current_2d_render_target = std::nullopt;
-                        g::d3d_dev->SetRenderTarget(0, g::original_render_target);
-                        g::d3d_dev->SetDepthStencilSurface(g::original_depth_stencil_target);
+                        if (g::original_render_target && g::d3d_dev->SetRenderTarget(0, g::original_render_target) != D3D_OK) {
+                            dbg("Failed to restore original render target after 2D setup failure");
+                        }
+                        if (g::original_depth_stencil_target && g::d3d_dev->SetDepthStencilSurface(g::original_depth_stencil_target) != D3D_OK) {
+                            dbg("Failed to restore original depth stencil surface after 2D setup failure");
+                        }
                         return;
                     }
                 }
