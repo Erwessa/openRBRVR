@@ -125,6 +125,11 @@ bool create_quad(IDirect3DDevice9* dev, float size, float aspect, float z, IDire
 
 IDirect3DSurface9* VRInterface::prepare_vr_rendering(IDirect3DDevice9* dev, RenderTarget tgt, bool clear)
 {
+    if (!current_render_context || !dev) {
+        dbg("PrepareVRRendering: Render context or D3D9 device is unavailable");
+        return nullptr;
+    }
+
     if (is_using_texture_to_render(current_render_context->msaa, tgt, dx::multiview_rendering_enabled())) {
         current_render_context->dx_surface[tgt] = nullptr;
         if (!current_render_context->dx_texture[tgt]) {
@@ -162,6 +167,10 @@ IDirect3DSurface9* VRInterface::prepare_vr_rendering(IDirect3DDevice9* dev, Rend
 
 void VRInterface::finish_vr_rendering(IDirect3DDevice9* dev, RenderTarget tgt)
 {
+    if (!current_render_context) {
+        return;
+    }
+
     if (is_using_texture_to_render(current_render_context->msaa, tgt, dx::multiview_rendering_enabled()) && current_render_context->dx_surface[tgt]) {
         current_render_context->dx_surface[tgt]->Release();
         current_render_context->dx_surface[tgt] = nullptr;
