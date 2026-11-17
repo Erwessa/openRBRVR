@@ -100,6 +100,15 @@ openRBRVR::~openRBRVR()
         g::vr = nullptr;
     }
 
+    if (g::original_render_target) {
+        g::original_render_target->Release();
+        g::original_render_target = nullptr;
+    }
+    if (g::original_depth_stencil_target) {
+        g::original_depth_stencil_target->Release();
+        g::original_depth_stencil_target = nullptr;
+    }
+
     // RBR may request a new plugin instance after destroying the old one.
     if (g::openrbrvr == this) {
         g::openrbrvr = nullptr;
