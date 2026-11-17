@@ -84,8 +84,12 @@ namespace dx {
             g::vr->finish_vr_rendering(g::d3d_dev, eye);
         } else {
             dbg("Failed to set 3D render target");
-            g::d3d_dev->SetRenderTarget(0, g::original_render_target);
-            g::d3d_dev->SetDepthStencilSurface(g::original_depth_stencil_target);
+            if (g::original_render_target && g::d3d_dev->SetRenderTarget(0, g::original_render_target) != D3D_OK) {
+                dbg("Failed to restore original render target after VR eye setup failure");
+            }
+            if (g::original_depth_stencil_target && g::d3d_dev->SetDepthStencilSurface(g::original_depth_stencil_target) != D3D_OK) {
+                dbg("Failed to restore original depth stencil surface after VR eye setup failure");
+            }
         }
         g::vr_render_target = std::nullopt;
     }
