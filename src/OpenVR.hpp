@@ -24,12 +24,7 @@ public:
 
     void init(IDirect3DDevice9* dev, IDirect3DVR9** vrdev, uint32_t companionWindowWidth, uint32_t companionWindowHeight);
 
-    void shutdown_vr() override
-    {
-        vr::VR_Shutdown();
-        hmd = nullptr;
-        compositor = nullptr;
-    }
+    void shutdown_vr() override;
     void prepare_frames_for_hmd(IDirect3DDevice9* dev) override;
     bool update_vr_poses() override;
     void submit_frames_to_hmd(IDirect3DDevice9* dev) override;
