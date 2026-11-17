@@ -899,11 +899,16 @@ namespace dx {
     {
         const auto ret = g::hooks::end_state_block.call(This, ppSB);
 
-        auto vtbl = get_vtable<IDirect3DStateBlock9Vtbl>(*ppSB);
-        g::hooks::apply_state_block = Hook(vtbl->Apply, ApplyStateBlock);
+        // EndStateBlock can fail without returning a state block. Keep the
+        // hook installed so a later successful call can still be intercepted.
+        if (SUCCEEDED(ret) && ppSB && *ppSB) {
+            auto vtbl = get_vtable<IDirect3DStateBlock9Vtbl>(*ppSB);
+            g::hooks::apply_state_block = Hook(vtbl->Apply, ApplyStateBlock);
 
-        // Remove the hook as IDirect3DStateBlock9::Apply is hooked
-        g::hooks::end_state_block.~Hook();
+            // Remove the MinHook detour without ending the lifetime of the
+            // global Hook object.
+            g::hooks::end_state_block.reset();
+        }
 
         return ret;
     }
