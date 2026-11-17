@@ -98,8 +98,12 @@ bool create_render_target(
             } else {
                 create_depth_result = g::d3d_dev->CreateDepthStencilSurface(w, h, wantedFormats[i], msaa, 0, true, depth_stencil_surface, nullptr);
             }
-            if (SUCCEEDED(create_depth_result)) {
+            if (SUCCEEDED(create_depth_result) && *depth_stencil_surface) {
                 break;
+            }
+            if (*depth_stencil_surface) {
+                (*depth_stencil_surface)->Release();
+                *depth_stencil_surface = nullptr;
             }
         }
         if (i == 4) {
