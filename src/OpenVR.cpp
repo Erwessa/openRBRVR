@@ -352,10 +352,10 @@ void OpenVR::submit_frames_to_hmd(IDirect3DDevice9* dev)
 
     g::d3d_vr->BeginVRSubmit();
     if (auto e = compositor->Submit(static_cast<vr::EVREye>(LeftEye), &openvr_texture[LeftEye]); e != vr::VRCompositorError_None) [[unlikely]] {
-        dbg(std::format("Compositor error: {}", vr_compositor_error_str(e)));
+        dbg(std::format("Left-eye compositor submission failed: {} (code {})", vr_compositor_error_str(e), static_cast<int>(e)));
     }
     if (auto e = compositor->Submit(static_cast<vr::EVREye>(RightEye), &openvr_texture[RightEye]); e != vr::VRCompositorError_None) [[unlikely]] {
-        dbg(std::format("Compositor error: {}", vr_compositor_error_str(e)));
+        dbg(std::format("Right-eye compositor submission failed: {} (code {})", vr_compositor_error_str(e), static_cast<int>(e)));
     }
     compositor->PostPresentHandoff();
     g::d3d_vr->EndVRSubmit();
