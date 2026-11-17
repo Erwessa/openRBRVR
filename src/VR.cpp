@@ -15,6 +15,32 @@ namespace g {
     static constexpr D3DMATRIX identity_matrix = d3d_from_m4(glm::identity<glm::mat4x4>());
     static IDirect3DVertexBuffer9* quad_vertex_buf[2];
     static IDirect3DVertexBuffer9* overlay_border_quad;
+    static bool quads_created = false;
+}
+
+VRInterface::~VRInterface()
+{
+    // These managed buffers are shared by the active VR interface. Release
+    // them when that interface is destroyed, including partial initialization.
+    if (g::companion_window_vertex_buf_menu) {
+        g::companion_window_vertex_buf_menu->Release();
+        g::companion_window_vertex_buf_menu = nullptr;
+    }
+    if (g::companion_window_vertex_buf_3d) {
+        g::companion_window_vertex_buf_3d->Release();
+        g::companion_window_vertex_buf_3d = nullptr;
+    }
+    for (auto& buffer : g::quad_vertex_buf) {
+        if (buffer) {
+            buffer->Release();
+            buffer = nullptr;
+        }
+    }
+    if (g::overlay_border_quad) {
+        g::overlay_border_quad->Release();
+        g::overlay_border_quad = nullptr;
+    }
+    g::quads_created = false;
 }
 
 bool VRInterface::is_using_quad_view_rendering() const
@@ -163,8 +189,7 @@ void VRInterface::init_surfaces(IDirect3DDevice9* dev, RenderContext& ctx, uint3
     this->companion_window_width = res_x_2d;
     this->companion_window_height = res_y_2d;
     auto aspect_ratio = static_cast<float>(static_cast<double>(res_x_2d) / static_cast<double>(res_y_2d));
-    static bool quads_created = false;
-    if (!quads_created) {
+    if (!g::quads_created) {
         this->companion_window_aspect_ratio = aspect_ratio;
 
         // Create and fill a vertex buffers for the 2D planes
@@ -180,7 +205,7 @@ void VRInterface::init_surfaces(IDirect3DDevice9* dev, RenderContext& ctx, uint3
         if (!create_menu_screen_companion_window_buffer(dev))
             throw std::runtime_error("Could not create menu screen desktop window buffer");
 
-        quads_created = true;
+        g::quads_created = true;
     }
 
     // Render overlay border to a texture for later use
