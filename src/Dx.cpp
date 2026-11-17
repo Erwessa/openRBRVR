@@ -1021,6 +1021,78 @@ namespace dx {
         }
     }
 
+    HRESULT __stdcall Reset(IDirect3DDevice9* This, D3DPRESENT_PARAMETERS* pPresentationParameters)
+    {
+        if (This != g::d3d_dev || !g::vr || g::vr->get_runtime_type() != OPENVR)
+            return g::hooks::reset.call(This, pPresentationParameters);
+
+        auto* openvr = static_cast<OpenVR*>(g::vr);
+
+        // Release every plugin-owned default-pool resource before the Bridge
+        // Client forwards Reset to the x64 server.
+        openvr->shutdown_device_resources();
+
+        if (g::original_render_target) {
+            g::original_render_target->Release();
+            g::original_render_target = nullptr;
+        }
+        if (g::original_depth_stencil_target) {
+            g::original_depth_stencil_target->Release();
+            g::original_depth_stencil_target = nullptr;
+        }
+        g::current_2d_render_target.reset();
+        g::vr_render_target.reset();
+        g::vr_error = false;
+
+        const HRESULT resetResult = g::hooks::reset.call(This, pPresentationParameters);
+        if (FAILED(resetResult))
+            return resetResult;
+
+        // Reset discards device state; restore the small set of states that
+        // the plugin establishes during initial device creation.
+        This->SetRenderState(D3DRS_MULTISAMPLEANTIALIAS, 1);
+        for (auto sampler = D3DVERTEXTEXTURESAMPLER0;
+             sampler <= D3DVERTEXTEXTURESAMPLER3; ++sampler) {
+            This->SetSamplerState(sampler, D3DSAMP_MAXANISOTROPY, g::cfg.anisotropy);
+        }
+
+        IDirect3DSurface9* backBuffer = nullptr;
+        D3DSURFACE_DESC backBufferDesc = {};
+        HRESULT result = This->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &backBuffer);
+        if (SUCCEEDED(result) && backBuffer) {
+            result = backBuffer->GetDesc(&backBufferDesc);
+            backBuffer->Release();
+            backBuffer = nullptr;
+        }
+
+        if (FAILED(result) || backBufferDesc.Width == 0 || backBufferDesc.Height == 0) {
+            dbg(std::format("OpenVR reset recovery could not query the backbuffer (HRESULT 0x{:08X})",
+                static_cast<uint32_t>(result)));
+            delete g::vr;
+            g::vr = nullptr;
+            return resetResult;
+        }
+
+        result = CreateD3D9VR(This, &g::d3d_vr);
+        if (FAILED(result) || !g::d3d_vr) {
+            dbg(std::format("OpenVR reset recovery could not recreate the D3D9VR proxy (HRESULT 0x{:08X})",
+                static_cast<uint32_t>(result)));
+            delete g::vr;
+            g::vr = nullptr;
+            return resetResult;
+        }
+
+        try {
+            openvr->init(This, &g::d3d_vr, backBufferDesc.Width, backBufferDesc.Height);
+        } catch (const std::exception& e) {
+            dbg(std::format("OpenVR reset recovery failed: {}", e.what()));
+            delete g::vr;
+            g::vr = nullptr;
+        }
+
+        return resetResult;
+    }
+
     HRESULT __stdcall CreateDevice(
         IDirect3D9* This,
         UINT Adapter,
@@ -1092,6 +1164,8 @@ namespace dx {
 
         auto devvtbl = get_vtable<IDirect3DDevice9Vtbl>(dev);
         try {
+            if (g::vr && g::vr->get_runtime_type() == OPENVR)
+                g::hooks::reset = Hook(devvtbl->Reset, Reset);
             g::hooks::set_vertex_shader_constant_f = Hook(devvtbl->SetVertexShaderConstantF, SetVertexShaderConstantF);
             g::hooks::set_transform = Hook(devvtbl->SetTransform, SetTransform);
             g::hooks::present = Hook(devvtbl->Present, Present);
@@ -1112,6 +1186,7 @@ namespace dx {
             // a partially hooked device to the game.
             if (!g::vr || g::vr->get_runtime_type() == OPENVR) {
                 g::hooks::end_state_block.reset();
+                g::hooks::reset.reset();
                 g::hooks::clear.reset();
                 g::hooks::set_render_state.reset();
                 g::hooks::draw_primitive.reset();
