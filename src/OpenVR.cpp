@@ -67,6 +67,11 @@ constexpr static M4 m4_from_steamvr_matrix(const vr::HmdMatrix34_t& m)
 
 void OpenVR::init(IDirect3DDevice9* dev, IDirect3DVR9** vrdev, uint32_t companionWindowWidth, uint32_t companionWindowHeight)
 {
+    if (vrdev == nullptr || *vrdev == nullptr || g::d3d_vr == nullptr
+     || hmd == nullptr || compositor == nullptr) {
+        throw std::runtime_error("OpenVR initialization failed: required VR interfaces are unavailable");
+    }
+
     // WaitGetPoses might access the Vulkan queue so we need to lock it
     g::d3d_vr->LockSubmissionQueue();
     if (auto e = compositor->WaitGetPoses(poses, vr::k_unMaxTrackedDeviceCount, nullptr, 0); e != vr::VRCompositorError_None) {
