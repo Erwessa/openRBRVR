@@ -1610,14 +1610,24 @@ void OpenXR::recenter_view()
 
 void OpenXR::shutdown_vr()
 {
+    if (m_shutdown)
+        return;
+    m_shutdown = true;
+
     hand_tracking.shutdown();
     hand_mesh.clear();
+
+    if (cross_api_fence.fence)
+        synchronize_graphics_apis(true);
+
+    if (g::d3d_vr)
+        g::d3d_vr->WaitDeviceIdle(true);
+
     if (glove_texture) {
         glove_texture->Release();
         glove_texture = nullptr;
     }
     if (cross_api_fence.fence) {
-        synchronize_graphics_apis(true);
         cross_api_fence.fence->Release();
         cross_api_fence.fence = nullptr;
     }
@@ -1625,51 +1635,86 @@ void OpenXR::shutdown_vr()
         CloseHandle(cross_api_fence.shared_handle);
         cross_api_fence.shared_handle = nullptr;
     }
-    if (g::d3d_vr) {
-        g::d3d_vr->WaitDeviceIdle(true);
-        g::d3d_vr->Release();
-        g::d3d_vr = nullptr;
+
+    if (g::cfg.openxr_motion_compensation && input_state.action_set != XR_NULL_HANDLE) {
+        xrDestroyActionSet(input_state.action_set);
+        input_state.action_set = XR_NULL_HANDLE;
     }
 
-    if (g::cfg.openxr_motion_compensation) {
-        // TODO: More cleanup?
-        if (input_state.action_set != XR_NULL_HANDLE) {
-            xrDestroyActionSet(input_state.action_set);
-        }
-    }
-    xrDestroySpace(space);
-    xrDestroySpace(view_space);
+    for (auto& entry : render_contexts) {
+        auto& ctx = entry.second;
 
-    for (const auto& v : render_contexts) {
-        const auto& ctx = v.second;
-
-        for (int i = 0; i < 6; ++i) {
+        for (size_t i = 0; i < 6; i++) {
             if (ctx.dx_texture[i]) {
                 ctx.dx_texture[i]->Release();
+                ctx.dx_texture[i] = nullptr;
             }
             if (ctx.dx_surface[i]) {
                 ctx.dx_surface[i]->Release();
+                ctx.dx_surface[i] = nullptr;
             }
             if (ctx.dx_depth_stencil_surface[i]) {
                 ctx.dx_depth_stencil_surface[i]->Release();
+                ctx.dx_depth_stencil_surface[i] = nullptr;
             }
-            if (i < 4 && ctx.dx_shared_handle[i] != nullptr && ctx.dx_shared_handle != INVALID_HANDLE_VALUE) {
+            if (i < 4 && ctx.dx_shared_handle[i]
+             && ctx.dx_shared_handle[i] != INVALID_HANDLE_VALUE) {
                 CloseHandle(ctx.dx_shared_handle[i]);
+                ctx.dx_shared_handle[i] = nullptr;
             }
         }
 
-        auto xr_ctx = reinterpret_cast<OpenXRRenderContext*>(ctx.ext);
-        for (size_t i = 0; i < xr_ctx->swapchains.size(); ++i) {
-            xrDestroySwapchain(xr_ctx->swapchains[i]);
-            xr_ctx->shared_textures[i]->Release();
+        auto* xrContext = reinterpret_cast<OpenXRRenderContext*>(ctx.ext);
+        if (xrContext) {
+            for (size_t i = 0; i < xrContext->swapchains.size(); ++i) {
+                if (xrContext->swapchains[i] != XR_NULL_HANDLE)
+                    xrDestroySwapchain(xrContext->swapchains[i]);
+                if (i < xrContext->shared_textures.size() && xrContext->shared_textures[i])
+                    xrContext->shared_textures[i]->Release();
+            }
+            delete xrContext;
+            ctx.ext = nullptr;
         }
     }
+    render_contexts.clear();
+    current_render_context = nullptr;
 
-    xrDestroySession(session);
-    xrDestroyInstance(instance);
+    if (space != XR_NULL_HANDLE) {
+        xrDestroySpace(space);
+        space = XR_NULL_HANDLE;
+    }
+    if (view_space != XR_NULL_HANDLE) {
+        xrDestroySpace(view_space);
+        view_space = XR_NULL_HANDLE;
+    }
+    if (session != XR_NULL_HANDLE) {
+        xrDestroySession(session);
+        session = XR_NULL_HANDLE;
+    }
+    if (instance != XR_NULL_HANDLE) {
+        xrDestroyInstance(instance);
+        instance = XR_NULL_HANDLE;
+    }
 
-    gpu_start_query->Release();
-    gpu_end_query->Release();
-    gpu_freq_query->Release();
-    gpu_disjoint_query->Release();
+    if (gpu_start_query) {
+        gpu_start_query->Release();
+        gpu_start_query = nullptr;
+    }
+    if (gpu_end_query) {
+        gpu_end_query->Release();
+        gpu_end_query = nullptr;
+    }
+    if (gpu_disjoint_query) {
+        gpu_disjoint_query->Release();
+        gpu_disjoint_query = nullptr;
+    }
+    if (gpu_freq_query) {
+        gpu_freq_query->Release();
+        gpu_freq_query = nullptr;
+    }
+
+    if (g::d3d_vr) {
+        g::d3d_vr->Release();
+        g::d3d_vr = nullptr;
+    }
 }

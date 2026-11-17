@@ -41,23 +41,23 @@ namespace Side {
 struct InputState {
     XrActionSet action_set { XR_NULL_HANDLE };
     XrAction pose_action { XR_NULL_HANDLE };
-    std::array<XrPath, Side::COUNT> hand_subaction_path;
-    std::array<XrSpace, Side::COUNT> hand_space;
+    std::array<XrPath, Side::COUNT> hand_subaction_path {};
+    std::array<XrSpace, Side::COUNT> hand_space {};
 };
 
 class OpenXR : public VRInterface {
 private:
-    XrSession session;
-    XrInstance instance;
-    XrSystemId system_id;
-    XrSpace space;
-    XrSpace view_space;
-    XrFrameState frame_state;
-    int64_t swapchain_format;
-    XrPosef view_pose;
-    XrViewConfigurationType primary_view_config_type;
+    XrSession session = XR_NULL_HANDLE;
+    XrInstance instance = XR_NULL_HANDLE;
+    XrSystemId system_id = XR_NULL_SYSTEM_ID;
+    XrSpace space = XR_NULL_HANDLE;
+    XrSpace view_space = XR_NULL_HANDLE;
+    XrFrameState frame_state {};
+    int64_t swapchain_format = 0;
+    XrPosef view_pose {};
+    XrViewConfigurationType primary_view_config_type {};
     InputState input_state; // For sending poses to OpenXR-MotionCompensation https://github.com/BuzzteeBear/OpenXR-MotionCompensation
-    bool reset_view_requested;
+    bool reset_view_requested = false;
     HandTracking hand_tracking;
     HandMesh hand_mesh;
     IDirect3DTexture9* glove_texture = nullptr;
@@ -66,7 +66,7 @@ private:
     std::array<std::chrono::steady_clock::time_point, 4> last_hand_draw_log {};
     XrViewStateFlags hand_view_flags = 0;
 
-    PFN_xrConvertWin32PerformanceCounterToTimeKHR xr_convert_win32_performance_counter_to_time;
+    PFN_xrConvertWin32PerformanceCounterToTimeKHR xr_convert_win32_performance_counter_to_time = nullptr;
 
     struct {
         uint64_t value = 0;
@@ -78,10 +78,11 @@ private:
     std::vector<char> instance_extensions;
 
     bool perf_query_free_to_use = true;
-    IDirect3DQuery9* gpu_start_query;
-    IDirect3DQuery9* gpu_end_query;
-    IDirect3DQuery9* gpu_disjoint_query;
-    IDirect3DQuery9* gpu_freq_query;
+    bool m_shutdown = false;
+    IDirect3DQuery9* gpu_start_query = nullptr;
+    IDirect3DQuery9* gpu_end_query = nullptr;
+    IDirect3DQuery9* gpu_disjoint_query = nullptr;
+    IDirect3DQuery9* gpu_freq_query = nullptr;
 
     XrSwapchainImageD3D11KHR& acquire_swapchain_image(RenderTarget tgt);
     std::optional<XrViewState> update_views();
@@ -107,7 +108,7 @@ public:
     OpenXR& operator=(const OpenXR&) = delete;
     OpenXR& operator=(const OpenXR&&) = delete;
 
-    bool native_quad_views;
+    bool native_quad_views = false;
 
     void init(IDirect3DDevice9* dev, IDirect3DVR9** vrdev, uint32_t companionWindowWidth, uint32_t companionWindowHeight, std::optional<XrPosef> old_view_pose = std::nullopt);
     virtual ~OpenXR()
