@@ -261,6 +261,9 @@ namespace dx {
                     g::base_game_multiview_shaders.push_back(*ppShader);
                     g::failed_multiview_base_game_shaders++;
                 } else {
+                    // free_btb_shaders owns and releases every entry in this
+                    // vector, including this fallback reference.
+                    (*ppShader)->AddRef();
                     g::multiview_btb_shaders.push_back(*ppShader);
                     g::failed_multiview_btb_shaders++;
                 }
@@ -284,9 +287,16 @@ namespace dx {
                 const auto original_shader = g::base_game_shaders[j];
                 const auto multiview_shader = g::base_game_multiview_shaders[j];
 
+                if (multiview_shader == original_shader) {
+                    // Creation already fell back to the game-owned original;
+                    // do not patch it in place.
+                    continue;
+                }
+
                 if (!patch_spirv_shader_registers(multiview_shader)) {
                     // If the patching fails, use the original shader
                     // This will probably cause rendering glitches but should not crash the game
+                    multiview_shader->Release();
                     g::base_game_multiview_shaders[j] = original_shader;
                     g::failed_multiview_base_game_shaders++;
                 }
