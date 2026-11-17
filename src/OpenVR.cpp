@@ -97,10 +97,11 @@ void OpenVR::init(IDirect3DDevice9* dev, IDirect3DVR9** vrdev, uint32_t companio
     if (FAILED(lockResult)) {
         dbg(std::format("Could not lock the Vulkan queue before initial WaitGetPoses (HRESULT 0x{:08X})", static_cast<uint32_t>(lockResult)));
     } else {
-        if (auto e = compositor->WaitGetPoses(poses, vr::k_unMaxTrackedDeviceCount, nullptr, 0); e != vr::VRCompositorError_None) {
-            dbg(std::format("Initial WaitGetPoses failed: {} (code {})", vr_compositor_error_str(e), static_cast<int>(e)));
-        }
+        const auto poseResult = compositor->WaitGetPoses(poses, vr::k_unMaxTrackedDeviceCount, nullptr, 0);
         const HRESULT unlockResult = g::d3d_vr->UnlockSubmissionQueue();
+        if (poseResult != vr::VRCompositorError_None) {
+            dbg(std::format("Initial WaitGetPoses failed: {} (code {})", vr_compositor_error_str(poseResult), static_cast<int>(poseResult)));
+        }
         if (FAILED(unlockResult)) {
             dbg(std::format("Could not unlock the Vulkan queue after initial WaitGetPoses (HRESULT 0x{:08X})", static_cast<uint32_t>(unlockResult)));
         }
@@ -396,15 +397,18 @@ void OpenVR::submit_frames_to_hmd(IDirect3DDevice9* dev)
     }
     m_framesPrepared = false;
 
-    if (auto e = compositor->Submit(static_cast<vr::EVREye>(LeftEye), &openvr_texture[LeftEye]); e != vr::VRCompositorError_None) [[unlikely]] {
-        dbg(std::format("Left-eye compositor submission failed: {} (code {})", vr_compositor_error_str(e), static_cast<int>(e)));
-    }
-    if (auto e = compositor->Submit(static_cast<vr::EVREye>(RightEye), &openvr_texture[RightEye]); e != vr::VRCompositorError_None) [[unlikely]] {
-        dbg(std::format("Right-eye compositor submission failed: {} (code {})", vr_compositor_error_str(e), static_cast<int>(e)));
-    }
+    const auto leftSubmitResult = compositor->Submit(static_cast<vr::EVREye>(LeftEye), &openvr_texture[LeftEye]);
+    const auto rightSubmitResult = compositor->Submit(static_cast<vr::EVREye>(RightEye), &openvr_texture[RightEye]);
     compositor->PostPresentHandoff();
 
     const HRESULT endResult = g::d3d_vr->EndVRSubmit();
+
+    if (leftSubmitResult != vr::VRCompositorError_None) [[unlikely]] {
+        dbg(std::format("Left-eye compositor submission failed: {} (code {})", vr_compositor_error_str(leftSubmitResult), static_cast<int>(leftSubmitResult)));
+    }
+    if (rightSubmitResult != vr::VRCompositorError_None) [[unlikely]] {
+        dbg(std::format("Right-eye compositor submission failed: {} (code {})", vr_compositor_error_str(rightSubmitResult), static_cast<int>(rightSubmitResult)));
+    }
     if (FAILED(endResult)) {
         dbg(std::format("Failed to restore Vulkan image layouts after OpenVR submission (HRESULT 0x{:08X})", static_cast<uint32_t>(endResult)));
     }
