@@ -263,34 +263,56 @@ static void render_texture(
     IDirect3DTexture9* tex,
     IDirect3DVertexBuffer9* vbuf)
 {
+    const bool multiview = dx::multiview_rendering_enabled();
     IDirect3DVertexShader9* vs = nullptr;
     IDirect3DPixelShader9* ps = nullptr;
+    IDirect3DBaseTexture9* origTex = nullptr;
     D3DMATRIX origProj, origProj2, origView, origView2, origWorld;
 
     const HRESULT getVertexShaderResult = dev->GetVertexShader(&vs);
     const HRESULT getPixelShaderResult = dev->GetPixelShader(&ps);
+    const HRESULT getTextureResult = dev->GetTexture(0, &origTex);
+    const HRESULT getProjectionResult = dev->GetTransform(D3DTS_PROJECTION_LEFT, &origProj);
+    const HRESULT getViewResult = dev->GetTransform(D3DTS_VIEW_LEFT, &origView);
+    const HRESULT getWorldResult = dev->GetTransform(D3DTS_WORLD, &origWorld);
+    const HRESULT getProjectionRightResult = multiview
+        ? dev->GetTransform(D3DTS_PROJECTION_RIGHT, &origProj2) : D3D_OK;
+    const HRESULT getViewRightResult = multiview
+        ? dev->GetTransform(D3DTS_VIEW_RIGHT, &origView2) : D3D_OK;
+
+    if (FAILED(getVertexShaderResult) || FAILED(getPixelShaderResult) || FAILED(getTextureResult)
+        || FAILED(getProjectionResult) || FAILED(getViewResult) || FAILED(getWorldResult)
+        || FAILED(getProjectionRightResult) || FAILED(getViewRightResult)) {
+        dbg("Failed to capture D3D9 state before rendering VR texture");
+        if (origTex)
+            origTex->Release();
+        if (vs)
+            vs->Release();
+        if (ps)
+            ps->Release();
+        return;
+    }
+
+    if (FAILED(dev->BeginScene())) {
+        dbg("Failed to begin D3D9 scene for VR texture rendering");
+        if (origTex)
+            origTex->Release();
+        if (vs)
+            vs->Release();
+        if (ps)
+            ps->Release();
+        return;
+    }
 
     dev->SetVertexShader(nullptr);
     dev->SetPixelShader(nullptr);
-
-    dev->GetTransform(D3DTS_PROJECTION_LEFT, &origProj);
-    dev->GetTransform(D3DTS_VIEW_LEFT, &origView);
-    dev->GetTransform(D3DTS_WORLD, &origWorld);
-
     dev->SetTransform(D3DTS_PROJECTION_LEFT, proj);
     dev->SetTransform(D3DTS_VIEW_LEFT, view);
-    if (dx::multiview_rendering_enabled()) {
-        dev->GetTransform(D3DTS_PROJECTION_RIGHT, &origProj2);
-        dev->GetTransform(D3DTS_VIEW_RIGHT, &origView2);
+    if (multiview) {
         dev->SetTransform(D3DTS_PROJECTION_RIGHT, proj_multiview);
         dev->SetTransform(D3DTS_VIEW_RIGHT, view);
     }
     dev->SetTransform(D3DTS_WORLD, world);
-
-    dev->BeginScene();
-
-    IDirect3DBaseTexture9* origTex = nullptr;
-    const HRESULT getTextureResult = dev->GetTexture(0, &origTex);
 
     dev->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
     dev->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
@@ -298,27 +320,27 @@ static void render_texture(
 
     dev->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
     dev->SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
-
     dev->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
     dev->SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
 
     dev->SetRenderState(D3DRS_ZENABLE, rbr::get_game_mode() == rbr::GameMode::MainMenu);
-
     dev->SetTexture(0, tex);
-
     dev->SetStreamSource(0, vbuf, 0, sizeof(Vertex));
     dev->SetFVF(D3DFVF_XYZ | D3DFVF_TEX1);
     dev->DrawPrimitive(D3DPT_TRIANGLESTRIP, 0, 2);
-
     dev->EndScene();
 
     dev->SetRenderState(D3DRS_ZENABLE, true);
-    if (SUCCEEDED(getTextureResult))
-        dev->SetTexture(0, origTex);
-    if (SUCCEEDED(getVertexShaderResult))
-        dev->SetVertexShader(vs);
-    if (SUCCEEDED(getPixelShaderResult))
-        dev->SetPixelShader(ps);
+    dev->SetTexture(0, origTex);
+    dev->SetVertexShader(vs);
+    dev->SetPixelShader(ps);
+    dev->SetTransform(D3DTS_PROJECTION_LEFT, &origProj);
+    dev->SetTransform(D3DTS_VIEW_LEFT, &origView);
+    if (multiview) {
+        dev->SetTransform(D3DTS_PROJECTION_RIGHT, &origProj2);
+        dev->SetTransform(D3DTS_VIEW_RIGHT, &origView2);
+    }
+    dev->SetTransform(D3DTS_WORLD, &origWorld);
 
     if (origTex)
         origTex->Release();
@@ -326,13 +348,6 @@ static void render_texture(
         vs->Release();
     if (ps)
         ps->Release();
-    dev->SetTransform(D3DTS_PROJECTION_LEFT, &origProj);
-    dev->SetTransform(D3DTS_VIEW_LEFT, &origView);
-    if (dx::multiview_rendering_enabled()) {
-        dev->SetTransform(D3DTS_PROJECTION_RIGHT, &origProj2);
-        dev->SetTransform(D3DTS_VIEW_RIGHT, &origView2);
-    }
-    dev->SetTransform(D3DTS_WORLD, &origWorld);
 }
 
 void render_overlay_border(IDirect3DDevice9* dev, IDirect3DTexture9* tex)
