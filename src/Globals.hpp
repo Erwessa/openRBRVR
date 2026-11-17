@@ -110,6 +110,7 @@ namespace g {
         // DirectX functions
         extern Hook<decltype(&Direct3DCreate9)> create;
         extern Hook<decltype(IDirect3D9Vtbl::CreateDevice)> create_device;
+        extern Hook<decltype(IDirect3DDevice9Vtbl::Reset)> reset;
         extern Hook<decltype(IDirect3DDevice9Vtbl::SetVertexShaderConstantF)> set_vertex_shader_constant_f;
         extern Hook<decltype(IDirect3DDevice9Vtbl::SetTransform)> set_transform;
         extern Hook<decltype(IDirect3DDevice9Vtbl::Present)> present;
