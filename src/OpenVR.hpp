@@ -7,6 +7,7 @@ class OpenVR : public VRInterface {
 private:
     D3D9_OPENVR_FRAME_STATE m_frameState = {};
     bool m_framesPrepared = false;
+    bool m_backgroundSessionInitialized = false;
 
     M4 get_projection_matrix(RenderTarget eye, float z_near, float z_far, bool reverse_z) const;
 

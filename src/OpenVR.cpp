@@ -3,6 +3,8 @@
 #include "Dx.hpp"
 #include "Globals.hpp"
 
+#include <openvr.h>
+
 static HRESULT get_texture_surface(IDirect3DTexture9* texture, IDirect3DSurface9** surface)
 {
     if (!surface)
@@ -32,7 +34,23 @@ static constexpr M4 m4_from_steamvr_matrix(const float* m)
         { m[3], m[7], m[11], 1.0f });
 }
 
-OpenVR::OpenVR() = default;
+OpenVR::OpenVR()
+{
+    // Initialize the x86 OpenVR client before Direct3DCreate9 starts Vulkan.
+    // The x64 Bridge Server owns the independent Scene session and compositor.
+    if (!vr::VR_IsHmdPresent())
+        throw std::runtime_error("OpenVR HMD is not present");
+
+    vr::EVRInitError error = vr::VRInitError_None;
+    auto* system = vr::VR_Init(&error, vr::VRApplication_Background);
+    if (error != vr::VRInitError_None || system == nullptr) {
+        const auto* description = vr::VR_GetVRInitErrorAsEnglishDescription(error);
+        throw std::runtime_error(std::format("OpenVR background initialization failed: {}",
+            description ? description : "unknown error"));
+    }
+
+    m_backgroundSessionInitialized = true;
+}
 
 M4 OpenVR::get_projection_matrix(RenderTarget eye, float z_near, float z_far, bool reverse_z) const
 {
@@ -138,6 +156,12 @@ void OpenVR::shutdown_vr()
     if (g::d3d_vr) {
         g::d3d_vr->Release();
         g::d3d_vr = nullptr;
+    }
+
+    // Release the x86 Background session in the process that initialized it.
+    if (m_backgroundSessionInitialized) {
+        vr::VR_Shutdown();
+        m_backgroundSessionInitialized = false;
     }
 
     m_frameState = {};

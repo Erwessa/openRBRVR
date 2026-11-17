@@ -85,6 +85,7 @@ pub fn build(b: *std.Build) void {
     dll.linkSystemLibrary("d3d9");
     dll.linkSystemLibrary("dxgi");
     dll.linkSystemLibrary("libminhook.x86");
+    dll.linkSystemLibrary("openvr_api");
     dll.linkSystemLibrary("openxr_loader");
     dll.linkSystemLibrary("user32");
     dll.linkSystemLibrary("version");
