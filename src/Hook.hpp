@@ -31,9 +31,17 @@ struct Hook {
     }
     void disable()
     {
-        if (MH_DisableHook(reinterpret_cast<void*>(src)) != MH_OK) {
+        if (src && MH_DisableHook(reinterpret_cast<void*>(src)) != MH_OK) {
             throw std::runtime_error("Could not disable hook");
         }
+    }
+    void reset() noexcept
+    {
+        if (src)
+            MH_RemoveHook(reinterpret_cast<void*>(src));
+
+        call = nullptr;
+        src = nullptr;
     }
     Hook(const Hook&) = delete;
     Hook(Hook&& rhs)
@@ -46,6 +54,10 @@ struct Hook {
     Hook& operator=(const Hook&) = delete;
     Hook& operator=(Hook&& rhs) noexcept
     {
+        if (this == &rhs)
+            return *this;
+
+        reset();
         call = rhs.call;
         src = rhs.src;
         rhs.call = nullptr;
@@ -54,11 +66,7 @@ struct Hook {
     }
     ~Hook()
     {
-        if (src)
-            MH_RemoveHook(reinterpret_cast<void*>(src));
-
-        call = nullptr;
-        src = nullptr;
+        reset();
     }
 };
 
