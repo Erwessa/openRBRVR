@@ -363,6 +363,11 @@ void OpenVR::submit_frames_to_hmd(IDirect3DDevice9* dev)
 
 bool OpenVR::update_vr_poses()
 {
+    if (!compositor || !g::d3d_vr) {
+        dbg("Could not update VR poses because the compositor or D3D VR interface is unavailable");
+        return false;
+    }
+
     // WaitGetPoses might access the Vulkan queue so we need to lock it
     g::d3d_vr->LockSubmissionQueue();
     if (auto e = compositor->WaitGetPoses(poses, vr::k_unMaxTrackedDeviceCount, nullptr, 0); e != vr::VRCompositorError_None) {
@@ -392,6 +397,9 @@ bool OpenVR::update_vr_poses()
 FrameTimingInfo OpenVR::get_frame_timing()
 {
     FrameTimingInfo ret = { 0 };
+    if (!compositor) {
+        return ret;
+    }
 
     vr::Compositor_FrameTiming t {
         .m_nSize = sizeof(vr::Compositor_FrameTiming)
