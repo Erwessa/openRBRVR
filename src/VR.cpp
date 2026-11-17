@@ -264,8 +264,13 @@ static void render_texture(
     IDirect3DVertexBuffer9* vbuf)
 {
     IDirect3DStateBlock9* state = nullptr;
-    if (FAILED(dev->CreateStateBlock(D3DSBT_ALL, &state)) || !state) {
+    const HRESULT createStateResult = dev->CreateStateBlock(D3DSBT_ALL, &state);
+    if (FAILED(createStateResult) || !state) {
         dbg("Failed to create D3D9 state block for VR texture rendering");
+        if (state) {
+            state->Release();
+            state = nullptr;
+        }
         return;
     }
     if (FAILED(state->Capture())) {
