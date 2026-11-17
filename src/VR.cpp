@@ -126,9 +126,19 @@ bool create_quad(IDirect3DDevice9* dev, float size, float aspect, float z, IDire
 IDirect3DSurface9* VRInterface::prepare_vr_rendering(IDirect3DDevice9* dev, RenderTarget tgt, bool clear)
 {
     if (is_using_texture_to_render(current_render_context->msaa, tgt, dx::multiview_rendering_enabled())) {
-        if (current_render_context->dx_texture[tgt]->GetSurfaceLevel(0, &current_render_context->dx_surface[tgt]) != D3D_OK) {
+        current_render_context->dx_surface[tgt] = nullptr;
+        if (!current_render_context->dx_texture[tgt]) {
+            dbg("PrepareVRRendering: Render target texture is null");
+            return nullptr;
+        }
+        const HRESULT surface_result = current_render_context->dx_texture[tgt]->GetSurfaceLevel(
+            0, &current_render_context->dx_surface[tgt]);
+        if (FAILED(surface_result) || !current_render_context->dx_surface[tgt]) {
             dbg("PrepareVRRendering: Failed to get surface level");
-            current_render_context->dx_surface[tgt] = nullptr;
+            if (current_render_context->dx_surface[tgt]) {
+                current_render_context->dx_surface[tgt]->Release();
+                current_render_context->dx_surface[tgt] = nullptr;
+            }
             return nullptr;
         }
     }
