@@ -1087,6 +1087,10 @@ namespace dx {
         auto d3d = g::hooks::create.call(SDKVersion);
         if (!d3d) {
             dbg("Could not initialize Vulkan");
+            if (g::vr && g::vr->get_runtime_type() == OPENVR) {
+                delete g::vr;
+                g::vr = nullptr;
+            }
             return nullptr;
         }
         auto d3d_vtbl = get_vtable<IDirect3D9Vtbl>(d3d);
