@@ -76,6 +76,16 @@ openRBRVR::openRBRVR(IRBRGame* g)
         g::hooks::set_camera_target = Hook(*reinterpret_cast<decltype(rbr::set_camera_target)*>(0x4663f0), rbr::set_camera_target);
         g::hooks::render_windscreen_effects = Hook(*reinterpret_cast<decltype(rbr::render_windscreen_effects)*>(rbr::get_address(0x452020)), rbr::render_windscreen_effects);
     } catch (const std::runtime_error& e) {
+        // Do not leave a partially installed set of RBR/DirectX hooks active.
+        g::hooks::render_windscreen_effects.reset();
+        g::hooks::set_camera_target.reset();
+        g::hooks::render_particles_4.reset();
+        g::hooks::render_particles_3.reset();
+        g::hooks::render_particles_2.reset();
+        g::hooks::render_particles.reset();
+        g::hooks::render.reset();
+        g::hooks::create.reset();
+
         dbg(e.what());
         MessageBoxA(nullptr, e.what(), "Hooking failed", MB_OK);
     }
