@@ -263,44 +263,20 @@ static void render_texture(
     IDirect3DTexture9* tex,
     IDirect3DVertexBuffer9* vbuf)
 {
-    const bool multiview = dx::multiview_rendering_enabled();
-    IDirect3DVertexShader9* vs = nullptr;
-    IDirect3DPixelShader9* ps = nullptr;
-    IDirect3DBaseTexture9* origTex = nullptr;
-    D3DMATRIX origProj, origProj2, origView, origView2, origWorld;
-
-    const HRESULT getVertexShaderResult = dev->GetVertexShader(&vs);
-    const HRESULT getPixelShaderResult = dev->GetPixelShader(&ps);
-    const HRESULT getTextureResult = dev->GetTexture(0, &origTex);
-    const HRESULT getProjectionResult = dev->GetTransform(D3DTS_PROJECTION_LEFT, &origProj);
-    const HRESULT getViewResult = dev->GetTransform(D3DTS_VIEW_LEFT, &origView);
-    const HRESULT getWorldResult = dev->GetTransform(D3DTS_WORLD, &origWorld);
-    const HRESULT getProjectionRightResult = multiview
-        ? dev->GetTransform(D3DTS_PROJECTION_RIGHT, &origProj2) : D3D_OK;
-    const HRESULT getViewRightResult = multiview
-        ? dev->GetTransform(D3DTS_VIEW_RIGHT, &origView2) : D3D_OK;
-
-    if (FAILED(getVertexShaderResult) || FAILED(getPixelShaderResult) || FAILED(getTextureResult)
-        || FAILED(getProjectionResult) || FAILED(getViewResult) || FAILED(getWorldResult)
-        || FAILED(getProjectionRightResult) || FAILED(getViewRightResult)) {
-        dbg("Failed to capture D3D9 state before rendering VR texture");
-        if (origTex)
-            origTex->Release();
-        if (vs)
-            vs->Release();
-        if (ps)
-            ps->Release();
+    IDirect3DStateBlock9* state = nullptr;
+    if (FAILED(dev->CreateStateBlock(D3DSBT_ALL, &state)) || !state) {
+        dbg("Failed to create D3D9 state block for VR texture rendering");
+        return;
+    }
+    if (FAILED(state->Capture())) {
+        dbg("Failed to capture D3D9 state before VR texture rendering");
+        state->Release();
         return;
     }
 
     if (FAILED(dev->BeginScene())) {
         dbg("Failed to begin D3D9 scene for VR texture rendering");
-        if (origTex)
-            origTex->Release();
-        if (vs)
-            vs->Release();
-        if (ps)
-            ps->Release();
+        state->Release();
         return;
     }
 
@@ -308,7 +284,7 @@ static void render_texture(
     dev->SetPixelShader(nullptr);
     dev->SetTransform(D3DTS_PROJECTION_LEFT, proj);
     dev->SetTransform(D3DTS_VIEW_LEFT, view);
-    if (multiview) {
+    if (dx::multiview_rendering_enabled()) {
         dev->SetTransform(D3DTS_PROJECTION_RIGHT, proj_multiview);
         dev->SetTransform(D3DTS_VIEW_RIGHT, view);
     }
@@ -327,27 +303,17 @@ static void render_texture(
     dev->SetTexture(0, tex);
     dev->SetStreamSource(0, vbuf, 0, sizeof(Vertex));
     dev->SetFVF(D3DFVF_XYZ | D3DFVF_TEX1);
-    dev->DrawPrimitive(D3DPT_TRIANGLESTRIP, 0, 2);
-    dev->EndScene();
-
-    dev->SetRenderState(D3DRS_ZENABLE, true);
-    dev->SetTexture(0, origTex);
-    dev->SetVertexShader(vs);
-    dev->SetPixelShader(ps);
-    dev->SetTransform(D3DTS_PROJECTION_LEFT, &origProj);
-    dev->SetTransform(D3DTS_VIEW_LEFT, &origView);
-    if (multiview) {
-        dev->SetTransform(D3DTS_PROJECTION_RIGHT, &origProj2);
-        dev->SetTransform(D3DTS_VIEW_RIGHT, &origView2);
+    if (FAILED(dev->DrawPrimitive(D3DPT_TRIANGLESTRIP, 0, 2))) {
+        dbg("Failed to draw VR texture quad");
     }
-    dev->SetTransform(D3DTS_WORLD, &origWorld);
+    if (FAILED(dev->EndScene())) {
+        dbg("Failed to end D3D9 scene after VR texture rendering");
+    }
 
-    if (origTex)
-        origTex->Release();
-    if (vs)
-        vs->Release();
-    if (ps)
-        ps->Release();
+    if (FAILED(state->Apply())) {
+        dbg("Failed to restore D3D9 state after VR texture rendering");
+    }
+    state->Release();
 }
 
 void render_overlay_border(IDirect3DDevice9* dev, IDirect3DTexture9* tex)
