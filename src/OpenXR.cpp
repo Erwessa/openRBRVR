@@ -448,6 +448,9 @@ OpenXR::OpenXR()
 
 void OpenXR::init(IDirect3DDevice9* dev, IDirect3DVR9** vrdev, uint32_t companion_window_width, uint32_t companion_window_height, std::optional<XrPosef> old_view_pose)
 {
+    if (!dev || !vrdev || !*vrdev || !g::d3d_vr)
+        throw std::runtime_error("OpenXR initialization failed: D3D9VR Bridge interface is unavailable");
+
     if (dev->CreateQuery(D3DQUERYTYPE_TIMESTAMP, &gpu_start_query) != D3D_OK) {
         throw std::runtime_error("VR initialization failed: CreateQuery");
     }
