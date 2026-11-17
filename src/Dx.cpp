@@ -579,7 +579,9 @@ namespace dx {
         }
         g::patched_btb_shaders.clear();
 
-        if (g::vr && !g::vr_error) {
+        if (FAILED(ret)) {
+            dbg(std::format("D3D9 Present failed (HRESULT 0x{:08X}); skipping OpenVR frame submission", static_cast<uint32_t>(ret)));
+        } else if (g::vr && !g::vr_error) {
             g::vr->submit_frames_to_hmd(g::d3d_dev);
 
             if (g::cfg.debug) {
