@@ -210,23 +210,37 @@ void VRInterface::init_surfaces(IDirect3DDevice9* dev, RenderContext& ctx, uint3
     }
 
     // Render overlay border to a texture for later use
-    IDirect3DSurface9* adj;
-    if (ctx.overlay_border->GetSurfaceLevel(0, &adj) == D3D_OK) {
-        IDirect3DSurface9* orig;
-        dev->GetRenderTarget(0, &orig);
-        dev->SetRenderTarget(0, adj);
-        dev->Clear(0, nullptr, D3DCLEAR_TARGET, D3DCOLOR_RGBA(255, 69, 0, 50), 1.0, 0);
-        constexpr auto borderSize = 0.02;
-        const D3DRECT center = {
-            static_cast<LONG>(borderSize / aspect_ratio * res_x_2d),
-            static_cast<LONG>(borderSize * res_y_2d),
-            static_cast<LONG>((1.0 - borderSize / aspect_ratio) * res_x_2d),
-            static_cast<LONG>((1.0 - borderSize) * res_y_2d)
-        };
-        dev->Clear(1, &center, D3DCLEAR_TARGET, D3DCOLOR_RGBA(0, 0, 0, 0), 1.0, 0);
+    IDirect3DSurface9* adj = nullptr;
+    if (SUCCEEDED(ctx.overlay_border->GetSurfaceLevel(0, &adj)) && adj) {
+        IDirect3DSurface9* orig = nullptr;
+        if (SUCCEEDED(dev->GetRenderTarget(0, &orig)) && orig) {
+            if (SUCCEEDED(dev->SetRenderTarget(0, adj))) {
+                if (FAILED(dev->Clear(0, nullptr, D3DCLEAR_TARGET, D3DCOLOR_RGBA(255, 69, 0, 50), 1.0, 0))) {
+                    dbg("Failed to clear overlay border render target");
+                }
+                constexpr auto borderSize = 0.02;
+                const D3DRECT center = {
+                    static_cast<LONG>(borderSize / aspect_ratio * res_x_2d),
+                    static_cast<LONG>(borderSize * res_y_2d),
+                    static_cast<LONG>((1.0 - borderSize / aspect_ratio) * res_x_2d),
+                    static_cast<LONG>((1.0 - borderSize) * res_y_2d)
+                };
+                if (FAILED(dev->Clear(1, &center, D3DCLEAR_TARGET, D3DCOLOR_RGBA(0, 0, 0, 0), 1.0, 0))) {
+                    dbg("Failed to clear overlay border center");
+                }
+                if (FAILED(dev->SetRenderTarget(0, orig))) {
+                    dbg("Failed to restore render target after overlay border rendering");
+                }
+            } else {
+                dbg("Failed to set overlay border render target");
+            }
+            orig->Release();
+        } else {
+            dbg("Failed to get original render target for overlay border");
+        }
         adj->Release();
-        dev->SetRenderTarget(0, orig);
-        orig->Release();
+    } else {
+        dbg("Failed to get overlay border surface level");
     }
 }
 
