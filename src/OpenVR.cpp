@@ -93,11 +93,18 @@ void OpenVR::init(IDirect3DDevice9* dev, IDirect3DVR9** vrdev, uint32_t companio
     }
 
     // WaitGetPoses might access the Vulkan queue so we need to lock it
-    g::d3d_vr->LockSubmissionQueue();
-    if (auto e = compositor->WaitGetPoses(poses, vr::k_unMaxTrackedDeviceCount, nullptr, 0); e != vr::VRCompositorError_None) {
-        dbg("Could not get VR poses");
+    const HRESULT lockResult = g::d3d_vr->LockSubmissionQueue();
+    if (FAILED(lockResult)) {
+        dbg(std::format("Could not lock the Vulkan queue before initial WaitGetPoses (HRESULT 0x{:08X})", static_cast<uint32_t>(lockResult)));
+    } else {
+        if (auto e = compositor->WaitGetPoses(poses, vr::k_unMaxTrackedDeviceCount, nullptr, 0); e != vr::VRCompositorError_None) {
+            dbg(std::format("Initial WaitGetPoses failed: {} (code {})", vr_compositor_error_str(e), static_cast<int>(e)));
+        }
+        const HRESULT unlockResult = g::d3d_vr->UnlockSubmissionQueue();
+        if (FAILED(unlockResult)) {
+            dbg(std::format("Could not unlock the Vulkan queue after initial WaitGetPoses (HRESULT 0x{:08X})", static_cast<uint32_t>(unlockResult)));
+        }
     }
-    g::d3d_vr->UnlockSubmissionQueue();
 
     uint32_t w, h;
     hmd->GetRecommendedRenderTargetSize(&w, &h);
@@ -160,6 +167,8 @@ OpenVR::OpenVR()
 
 void OpenVR::shutdown_vr()
 {
+    discard_prepared_frames();
+
     if (hmd || compositor) {
         vr::VR_Shutdown();
         hmd = nullptr;
@@ -267,7 +276,14 @@ void OpenVR::set_render_context(const std::string& name)
 
 void OpenVR::prepare_frames_for_hmd(IDirect3DDevice9* dev)
 {
-    m_framesPrepared = false;
+    if (m_framesPrepared) {
+        dbg("Discarding stale prepared OpenVR frame before preparing the next frame");
+        discard_prepared_frames();
+        if (m_framesPrepared) {
+            dbg("Skipping OpenVR frame preparation because the previous frame could not be discarded");
+            return;
+        }
+    }
     if (!m_textureDescriptorsValid) {
         dbg("Skipping OpenVR frame preparation because eye texture descriptors are invalid");
         return;
@@ -329,13 +345,36 @@ void OpenVR::prepare_frames_for_hmd(IDirect3DDevice9* dev)
         // If the first eye was queued successfully, close an empty VR submit
         // section so DXVK restores its layout before the next game frame.
         if (leftTransfer == D3D_OK) {
-            g::d3d_vr->BeginVRSubmit();
-            g::d3d_vr->EndVRSubmit();
+            m_framesPrepared = true;
+            discard_prepared_frames();
         }
         return;
     }
 
     m_framesPrepared = true;
+}
+
+void OpenVR::discard_prepared_frames()
+{
+    if (!m_framesPrepared)
+        return;
+
+    if (!g::d3d_vr) {
+        dbg("Cannot restore prepared OpenVR image layouts because the D3D VR interface is unavailable");
+        return;
+    }
+
+    const HRESULT beginResult = g::d3d_vr->BeginVRSubmit();
+    if (FAILED(beginResult)) {
+        dbg(std::format("Failed to begin OpenVR frame cleanup (HRESULT 0x{:08X})", static_cast<uint32_t>(beginResult)));
+        return;
+    }
+
+    m_framesPrepared = false;
+    const HRESULT endResult = g::d3d_vr->EndVRSubmit();
+    if (FAILED(endResult)) {
+        dbg(std::format("Failed to restore Vulkan image layouts after discarding OpenVR frame (HRESULT 0x{:08X})", static_cast<uint32_t>(endResult)));
+    }
 }
 
 void OpenVR::submit_frames_to_hmd(IDirect3DDevice9* dev)
@@ -344,13 +383,19 @@ void OpenVR::submit_frames_to_hmd(IDirect3DDevice9* dev)
         dbg("Skipping OpenVR submission because eye textures were not prepared");
         return;
     }
-    m_framesPrepared = false;
     if (!compositor || !g::d3d_vr) {
         dbg("Skipping OpenVR submission because the compositor or D3D VR interface is unavailable");
+        discard_prepared_frames();
         return;
     }
 
-    g::d3d_vr->BeginVRSubmit();
+    const HRESULT beginResult = g::d3d_vr->BeginVRSubmit();
+    if (FAILED(beginResult)) {
+        dbg(std::format("Failed to begin OpenVR submission (HRESULT 0x{:08X})", static_cast<uint32_t>(beginResult)));
+        return;
+    }
+    m_framesPrepared = false;
+
     if (auto e = compositor->Submit(static_cast<vr::EVREye>(LeftEye), &openvr_texture[LeftEye]); e != vr::VRCompositorError_None) [[unlikely]] {
         dbg(std::format("Left-eye compositor submission failed: {} (code {})", vr_compositor_error_str(e), static_cast<int>(e)));
     }
@@ -358,7 +403,11 @@ void OpenVR::submit_frames_to_hmd(IDirect3DDevice9* dev)
         dbg(std::format("Right-eye compositor submission failed: {} (code {})", vr_compositor_error_str(e), static_cast<int>(e)));
     }
     compositor->PostPresentHandoff();
-    g::d3d_vr->EndVRSubmit();
+
+    const HRESULT endResult = g::d3d_vr->EndVRSubmit();
+    if (FAILED(endResult)) {
+        dbg(std::format("Failed to restore Vulkan image layouts after OpenVR submission (HRESULT 0x{:08X})", static_cast<uint32_t>(endResult)));
+    }
 }
 
 bool OpenVR::update_vr_poses()
@@ -369,13 +418,22 @@ bool OpenVR::update_vr_poses()
     }
 
     // WaitGetPoses might access the Vulkan queue so we need to lock it
-    g::d3d_vr->LockSubmissionQueue();
-    if (auto e = compositor->WaitGetPoses(poses, vr::k_unMaxTrackedDeviceCount, nullptr, 0); e != vr::VRCompositorError_None) {
-        dbg("Could not get VR poses");
-        g::d3d_vr->UnlockSubmissionQueue();
+    const HRESULT lockResult = g::d3d_vr->LockSubmissionQueue();
+    if (FAILED(lockResult)) {
+        dbg(std::format("Could not lock the Vulkan queue before WaitGetPoses (HRESULT 0x{:08X})", static_cast<uint32_t>(lockResult)));
         return false;
     }
-    g::d3d_vr->UnlockSubmissionQueue();
+
+    const auto poseResult = compositor->WaitGetPoses(poses, vr::k_unMaxTrackedDeviceCount, nullptr, 0);
+    const HRESULT unlockResult = g::d3d_vr->UnlockSubmissionQueue();
+    if (poseResult != vr::VRCompositorError_None) {
+        dbg(std::format("WaitGetPoses failed: {} (code {})", vr_compositor_error_str(poseResult), static_cast<int>(poseResult)));
+        return false;
+    }
+    if (FAILED(unlockResult)) {
+        dbg(std::format("Could not unlock the Vulkan queue after WaitGetPoses (HRESULT 0x{:08X})", static_cast<uint32_t>(unlockResult)));
+        return false;
+    }
 
     auto pose = &poses[vr::k_unTrackedDeviceIndex_Hmd];
     if (pose->bPoseIsValid) {
