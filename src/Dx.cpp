@@ -863,16 +863,17 @@ namespace dx {
     HRESULT __stdcall DrawPrimitive(IDirect3DDevice9* This, D3DPRIMITIVETYPE PrimitiveType, UINT StartVertex, UINT PrimitiveCount)
     {
         if (rbr::is_on_btb_stage()) {
-            IDirect3DVertexShader9* shader;
-            g::d3d_dev->GetVertexShader(&shader);
-
-            if (shader && !multiview_rendering_enabled()) {
-                // Shader #39 causes strange "shadows" on BTB stages
-                // Clearly visible during CFH, and otherwise visible too when looking up
-                // Probably some projection matrix issue, but changing the projection matrix like
-                // we do normally had no effect, so on BTB stages we just won't draw this primitive with this shader.
-                // With multiview this bug seems to not occur so we also do this exception when multiview isn't enabled.
-                auto should_skip_drawing = shader == g::base_game_shaders[39];
+            IDirect3DVertexShader9* shader = nullptr;
+            if (SUCCEEDED(g::d3d_dev->GetVertexShader(&shader)) && shader) {
+                bool should_skip_drawing = false;
+                if (!multiview_rendering_enabled()) {
+                    // Shader #39 causes strange "shadows" on BTB stages
+                    // Clearly visible during CFH, and otherwise visible too when looking up
+                    // Probably some projection matrix issue, but changing the projection matrix like
+                    // we do normally had no effect, so on BTB stages we just won't draw this primitive with this shader.
+                    // With multiview this bug seems to not occur so we also do this exception when multiview isn't enabled.
+                    should_skip_drawing = shader == g::base_game_shaders[39];
+                }
                 shader->Release();
                 if (should_skip_drawing) {
                     return 0;
