@@ -1103,11 +1103,13 @@ void OpenXR::synchronize_graphics_apis(bool wait_for_cpu)
     if (const HRESULT flushResult = g::d3d_vr->Flush(); FAILED(flushResult)) {
         dbg(std::format("Failed to flush the x64 Bridge runtime: 0x{:08X}",
             static_cast<uint32_t>(flushResult)));
+        g::d3d_vr->WaitDeviceIdle(true);
         return;
     }
     if (const HRESULT signalResult = g::d3d_vr->SignalFence(cross_api_fence.value); FAILED(signalResult)) {
         dbg(std::format("Failed to signal the shared OpenXR fence: 0x{:08X}",
             static_cast<uint32_t>(signalResult)));
+        g::d3d_vr->WaitDeviceIdle(true);
         return;
     }
 
