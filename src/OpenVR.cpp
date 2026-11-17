@@ -162,6 +162,24 @@ void OpenVR::set_render_context(const std::string& name)
         return;
     }
 
+    const auto& left = dxvk_texture[LeftEye];
+    const auto& right = dxvk_texture[RightEye];
+    if (left.Image == 0 || right.Image == 0
+     || left.Image == right.Image
+     || left.SampleCount != VK_SAMPLE_COUNT_1_BIT
+     || right.SampleCount != VK_SAMPLE_COUNT_1_BIT
+     || left.Width == 0 || left.Height == 0
+     || left.Width != right.Width || left.Height != right.Height
+     || left.Format != right.Format
+     || left.Device != right.Device
+     || left.PhysicalDevice != right.PhysicalDevice
+     || left.Instance != right.Instance
+     || left.Queue != right.Queue
+     || left.QueueFamilyIndex != right.QueueFamilyIndex) {
+        dbg("OpenVR eye texture descriptors are inconsistent or not single-sampled");
+        return;
+    }
+
     openvr_texture[LeftEye].handle = reinterpret_cast<void*>(&dxvk_texture[LeftEye]);
     openvr_texture[LeftEye].eType = vr::TextureType_Vulkan;
     openvr_texture[LeftEye].eColorSpace = vr::ColorSpace_Auto;
