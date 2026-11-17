@@ -179,6 +179,12 @@ void OpenVR::shutdown_vr()
     }
 
     render_contexts.clear();
+
+    if (g::d3d_vr) {
+        g::d3d_vr->Release();
+        g::d3d_vr = nullptr;
+    }
+
     m_framesPrepared = false;
     m_textureDescriptorsValid = false;
 }
