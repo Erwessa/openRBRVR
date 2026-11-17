@@ -146,7 +146,8 @@ void OpenVR::shutdown_vr()
         g::d3d_vr->WaitDeviceIdle(true);
     }
 
-    for (auto& [name, ctx] : render_contexts) {
+    for (auto& contextEntry : render_contexts) {
+        auto& ctx = contextEntry.second;
         for (size_t i = 0; i < 6; ++i) {
             if (ctx.dx_texture[i]) {
                 ctx.dx_texture[i]->Release();
