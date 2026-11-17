@@ -974,6 +974,16 @@ namespace dx {
         D3DPRESENT_PARAMETERS* pPresentationParameters,
         IDirect3DDevice9** ppReturnedDeviceInterface)
     {
+        // This plugin keeps one global D3D9 device and one set of device hooks.
+        // A second CreateDevice call would replace the VR interface and render
+        // resources while the existing hooks still target the first device.
+        if (g::d3d_dev != nullptr) {
+            dbg("A second D3D9 device is not supported by the global VR device state");
+            if (ppReturnedDeviceInterface)
+                *ppReturnedDeviceInterface = nullptr;
+            return D3DERR_INVALIDCALL;
+        }
+
         IDirect3DDevice9* dev = nullptr;
 
         pPresentationParameters->PresentationInterval = D3DPRESENT_INTERVAL_IMMEDIATE;
