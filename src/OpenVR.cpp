@@ -148,14 +148,16 @@ void OpenVR::set_render_context(const std::string& name)
         return;
     }
 
-    if (g::d3d_vr->GetVRDesc(left_eye, &dxvk_texture[LeftEye]) != D3D_OK) {
-        dbg("Failed to get left eye descriptor");
-        left_eye->Release();
-        return;
-    }
-    if (g::d3d_vr->GetVRDesc(right_eye, &dxvk_texture[RightEye]) != D3D_OK) {
-        dbg("Failed to get right eye descriptor");
-        right_eye->Release();
+    const HRESULT leftDescResult = g::d3d_vr->GetVRDesc(left_eye, &dxvk_texture[LeftEye]);
+    const HRESULT rightDescResult = leftDescResult == D3D_OK
+        ? g::d3d_vr->GetVRDesc(right_eye, &dxvk_texture[RightEye])
+        : leftDescResult;
+
+    left_eye->Release();
+    right_eye->Release();
+
+    if (leftDescResult != D3D_OK || rightDescResult != D3D_OK) {
+        dbg("Failed to get eye texture descriptor");
         return;
     }
 
@@ -169,33 +171,69 @@ void OpenVR::set_render_context(const std::string& name)
 
 void OpenVR::prepare_frames_for_hmd(IDirect3DDevice9* dev)
 {
-    const auto msaa = current_render_context->msaa != D3DMULTISAMPLE_NONE;
-    if (dx::multiview_rendering_enabled() || msaa) {
-        // Resolve multisampling
-        IDirect3DSurface9 *left_eye, *right_eye;
+    m_framesPrepared = false;
 
-        if (current_render_context->dx_texture[LeftEye]->GetSurfaceLevel(0, &left_eye) != D3D_OK) {
-            dbg("Failed to get left eye surface");
-            return;
-        }
-        if (current_render_context->dx_texture[RightEye]->GetSurfaceLevel(0, &right_eye) != D3D_OK) {
-            dbg("Failed to get right eye surface");
-            left_eye->Release();
-            return;
-        }
-        if (dx::multiview_rendering_enabled()) {
-            IDirect3DSurface9* eyes[2] = { left_eye, right_eye };
-            g::d3d_vr->CopySurfaceLayers(current_render_context->dx_surface[LeftEye], eyes, 2);
-        } else {
-            // Resolve multisampling
-            dev->StretchRect(current_render_context->dx_surface[LeftEye], nullptr, left_eye, nullptr, D3DTEXF_NONE);
-            dev->StretchRect(current_render_context->dx_surface[RightEye], nullptr, right_eye, nullptr, D3DTEXF_NONE);
-        }
+    IDirect3DSurface9 *left_eye = nullptr, *right_eye = nullptr;
+    if (current_render_context->dx_texture[LeftEye]->GetSurfaceLevel(0, &left_eye) != D3D_OK) {
+        dbg("Failed to get left eye surface");
+        return;
     }
+    if (current_render_context->dx_texture[RightEye]->GetSurfaceLevel(0, &right_eye) != D3D_OK) {
+        dbg("Failed to get right eye surface");
+        left_eye->Release();
+        return;
+    }
+
+    HRESULT prepareResult = D3D_OK;
+    if (dx::multiview_rendering_enabled()) {
+        IDirect3DSurface9* eyes[2] = { left_eye, right_eye };
+        prepareResult = g::d3d_vr->CopySurfaceLayers(current_render_context->dx_surface[LeftEye], eyes, 2);
+    } else if (current_render_context->msaa != D3DMULTISAMPLE_NONE) {
+        prepareResult = dev->StretchRect(current_render_context->dx_surface[LeftEye], nullptr, left_eye, nullptr, D3DTEXF_NONE);
+        if (prepareResult == D3D_OK)
+            prepareResult = dev->StretchRect(current_render_context->dx_surface[RightEye], nullptr, right_eye, nullptr, D3DTEXF_NONE);
+    }
+
+    if (prepareResult != D3D_OK) {
+        dbg("Failed to prepare eye textures for OpenVR submission");
+        left_eye->Release();
+        right_eye->Release();
+        return;
+    }
+
+    // DXVK must transition each submitted image to TRANSFER_SRC_OPTIMAL
+    // before the OpenVR compositor accesses the Vulkan queue.
+    const HRESULT leftTransfer = g::d3d_vr->TransferSurfaceForVR(left_eye);
+    const HRESULT rightTransfer = leftTransfer == D3D_OK
+        ? g::d3d_vr->TransferSurfaceForVR(right_eye)
+        : leftTransfer;
+
+    left_eye->Release();
+    right_eye->Release();
+
+    if (leftTransfer != D3D_OK || rightTransfer != D3D_OK) {
+        dbg("Failed to prepare eye image layouts for OpenVR submission");
+
+        // If the first eye was queued successfully, close an empty VR submit
+        // section so DXVK restores its layout before the next game frame.
+        if (leftTransfer == D3D_OK) {
+            g::d3d_vr->BeginVRSubmit();
+            g::d3d_vr->EndVRSubmit();
+        }
+        return;
+    }
+
+    m_framesPrepared = true;
 }
 
 void OpenVR::submit_frames_to_hmd(IDirect3DDevice9* dev)
 {
+    if (!m_framesPrepared) {
+        dbg("Skipping OpenVR submission because eye textures were not prepared");
+        return;
+    }
+    m_framesPrepared = false;
+
     g::d3d_vr->BeginVRSubmit();
     if (auto e = compositor->Submit(static_cast<vr::EVREye>(LeftEye), &openvr_texture[LeftEye]); e != vr::VRCompositorError_None) [[unlikely]] {
         dbg(std::format("Compositor error: {}", vr_compositor_error_str(e)));

@@ -10,6 +10,7 @@ private:
     vr::TrackedDevicePose_t poses[vr::k_unMaxTrackedDeviceCount];
     vr::Texture_t openvr_texture[2];
     D3D9_TEXTURE_VR_DESC dxvk_texture[2];
+    bool m_framesPrepared = false;
 
     constexpr M4 get_projection_matrix(RenderTarget eye, float z_near, float z_far, bool reverse_z);
 
