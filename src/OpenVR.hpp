@@ -32,7 +32,11 @@ public:
     FrameTimingInfo get_frame_timing() override;
     void reset_view() override
     {
-        vr::VRChaperone()->ResetZeroPose(vr::ETrackingUniverseOrigin::TrackingUniverseSeated);
+        if (auto* chaperone = vr::VRChaperone()) {
+            chaperone->ResetZeroPose(vr::ETrackingUniverseOrigin::TrackingUniverseSeated);
+        } else {
+            dbg("Could not reset VR view because the OpenVR chaperone interface is unavailable");
+        }
     }
     VRRuntime get_runtime_type() const override
     {
