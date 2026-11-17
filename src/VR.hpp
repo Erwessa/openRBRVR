@@ -125,9 +125,7 @@ protected:
     static constexpr float z_far = 10000.0f;
 
 public:
-    virtual ~VRInterface()
-    {
-    }
+    virtual ~VRInterface();
 
     double companion_window_width;
     double companion_window_height;
