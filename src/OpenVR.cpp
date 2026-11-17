@@ -64,7 +64,7 @@ void OpenVR::init(IDirect3DDevice9* dev, IDirect3DVR9** vrdev,
             static_cast<uint32_t>(sceneResult)));
 
     const HRESULT frameResult = g::d3d_vr->AcquireOpenVRFrame(&m_frameState);
-    if (FAILED(frameResult) || m_frameState.Version != 1
+    if (FAILED(frameResult) || m_frameState.Version != D3D9_OPENVR_FRAME_STATE_VERSION
         || m_frameState.RecommendedWidth == 0 || m_frameState.RecommendedHeight == 0)
         throw std::runtime_error(std::format("OpenVR initial frame query failed (HRESULT 0x{:08X})",
             static_cast<uint32_t>(frameResult)));
@@ -247,7 +247,7 @@ bool OpenVR::update_vr_poses()
 
     D3D9_OPENVR_FRAME_STATE next = {};
     const HRESULT result = g::d3d_vr->AcquireOpenVRFrame(&next);
-    if (FAILED(result) || next.Version != 1)
+    if (FAILED(result) || next.Version != D3D9_OPENVR_FRAME_STATE_VERSION)
         return false;
 
     m_frameState = next;
