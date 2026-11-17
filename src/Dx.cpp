@@ -884,10 +884,18 @@ namespace dx {
 
     HRESULT __stdcall DrawIndexedPrimitive(IDirect3DDevice9* This, D3DPRIMITIVETYPE PrimitiveType, INT BaseVertexIndex, UINT MinVertexIndex, UINT NumVertices, UINT startIndex, UINT primCount)
     {
-        IDirect3DVertexShader9* shader;
-        IDirect3DBaseTexture9* texture;
-        g::d3d_dev->GetVertexShader(&shader);
-        g::d3d_dev->GetTexture(0, &texture);
+        IDirect3DVertexShader9* shader = nullptr;
+        IDirect3DBaseTexture9* texture = nullptr;
+        const HRESULT shader_result = g::d3d_dev->GetVertexShader(&shader);
+        const HRESULT texture_result = g::d3d_dev->GetTexture(0, &texture);
+        if (FAILED(shader_result) || FAILED(texture_result)) {
+            if (shader)
+                shader->Release();
+            if (texture)
+                texture->Release();
+            return g::hooks::draw_indexed_primitive.call(
+                g::d3d_dev, PrimitiveType, BaseVertexIndex, MinVertexIndex, NumVertices, startIndex, primCount);
+        }
         if (g::vr_render_target && !shader && !texture) {
             if (!rbr::is_using_cockpit_camera()) {
                 // Don't draw these if we're not in a cockpit camera.
