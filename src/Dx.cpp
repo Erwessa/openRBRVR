@@ -533,10 +533,10 @@ namespace dx {
             }
         }
 
-        if (g::d3d_dev->SetRenderTarget(0, g::original_render_target) != D3D_OK) {
+        if (g::original_render_target && g::d3d_dev->SetRenderTarget(0, g::original_render_target) != D3D_OK) {
             dbg("Failed to reset render target to original");
         }
-        if (g::d3d_dev->SetDepthStencilSurface(g::original_depth_stencil_target) != D3D_OK) {
+        if (g::original_depth_stencil_target && g::d3d_dev->SetDepthStencilSurface(g::original_depth_stencil_target) != D3D_OK) {
             dbg("Failed to reset depth stencil surface to original");
         }
         auto ret = 0;
@@ -582,8 +582,14 @@ namespace dx {
             }
         }
 
-        g::original_render_target->Release();
-        g::original_depth_stencil_target->Release();
+        if (g::original_render_target) {
+            g::original_render_target->Release();
+            g::original_render_target = nullptr;
+        }
+        if (g::original_depth_stencil_target) {
+            g::original_depth_stencil_target->Release();
+            g::original_depth_stencil_target = nullptr;
+        }
 
         if (std::chrono::steady_clock::now() - g::second_start > std::chrono::seconds(1)) {
             g::second_start = std::chrono::steady_clock::now();
