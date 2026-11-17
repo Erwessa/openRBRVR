@@ -581,7 +581,7 @@ namespace dx {
 
         if (FAILED(ret)) {
             dbg(std::format("D3D9 Present failed (HRESULT 0x{:08X}); skipping OpenVR frame submission", static_cast<uint32_t>(ret)));
-            if (g::vr && !g::vr_error) {
+            if (g::vr) {
                 g::vr->discard_prepared_frames();
             }
         } else if (g::vr && !g::vr_error) {
