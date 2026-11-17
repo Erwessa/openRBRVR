@@ -1076,7 +1076,7 @@ namespace dx {
 
         *ppReturnedDeviceInterface = dev;
         g::d3d_vr = nullptr;
-        const auto vr_result = Direct3DCreateVR(dev, &g::d3d_vr);
+        const auto vr_result = CreateD3D9VR(dev, &g::d3d_vr);
         if (FAILED(vr_result)) {
             if (g::d3d_vr) {
                 g::d3d_vr->Release();

@@ -3,7 +3,24 @@
 #include <d3d9.h>
 #include <d3d9vr.h>
 
-extern "C" HRESULT __stdcall Direct3DCreateVR(IDirect3DDevice9* pDevice, IDirect3DVR9** pInterface);
+using Direct3DCreateVRFn = HRESULT (WINAPI*)(IDirect3DDevice9*, IDirect3DVR9**);
+
+// Resolve the optional Bridge Client export dynamically. This avoids making
+// the whole plugin unloadable when an older d3d9.dll lacks the VR extension.
+inline HRESULT CreateD3D9VR(IDirect3DDevice9* device, IDirect3DVR9** interfaceOut)
+{
+    if (!device || !interfaceOut)
+        return D3DERR_INVALIDCALL;
+    *interfaceOut = nullptr;
+
+    const HMODULE module = GetModuleHandleA("d3d9.dll");
+    if (!module)
+        return D3DERR_NOTAVAILABLE;
+
+    const auto create = reinterpret_cast<Direct3DCreateVRFn>(
+        GetProcAddress(module, "Direct3DCreateVR"));
+    return create ? create(device, interfaceOut) : D3DERR_NOTAVAILABLE;
+}
 
 // The vtable definitions are from Mesa(https://www.mesa3d.org) under following license:
 /*
