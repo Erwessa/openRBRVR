@@ -1153,11 +1153,16 @@ namespace dx {
         } catch (const std::runtime_error& e) {
             MessageBoxA(hFocusWindow, e.what(), "VR init failed", MB_OK);
 
-            // OpenVR may have allocated render-context resources before initialization failed.
-            // Destroy the incomplete interface so render hooks cannot use an invalid context.
-            if (g::vr && g::vr->get_runtime_type() == OPENVR) {
+            // Either runtime may have allocated render-context or interop
+            // resources before initialization failed. Tear down the interface
+            // and its Bridge proxy so the device can continue in flat mode.
+            if (g::vr) {
                 delete g::vr;
                 g::vr = nullptr;
+            }
+            if (g::d3d_vr) {
+                g::d3d_vr->Release();
+                g::d3d_vr = nullptr;
             }
         }
         // Initialize this pointer here, as it's too early to do this in openRBRVR constructor
