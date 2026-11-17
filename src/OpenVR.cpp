@@ -89,6 +89,8 @@ void OpenVR::init(IDirect3DDevice9* dev, IDirect3DVR9** vrdev,
             init_surfaces(dev, storedContext, companionWindowWidth, companionWindowHeight);
         }
         set_render_context("default");
+        if (!update_vr_poses())
+            throw std::runtime_error("OpenVR could not acquire its initial tracking snapshot");
     } catch (const std::runtime_error&) {
         throw;
     }
