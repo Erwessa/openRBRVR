@@ -57,22 +57,24 @@ bool create_render_target(
     uint32_t h,
     bool multiview)
 {
-    HRESULT ret = 0;
-
     const auto msaa = get_msaa_for_render_target(tgt, msaa_in);
 
-    // If anti-aliasing is enabled, we need to first render into an anti-aliased render target.
-    // If not, we can render directly to a texture that has D3DUSAGE_RENDERTARGET set.
+    // If anti-aliasing is enabled, create a separate multisampled render surface.
     if (!is_using_texture_to_render(msaa, tgt, multiview)) {
-        if (multiview) {
-            ret |= g::d3d_vr->CreateMultiViewRenderTarget(w, h, fmt, msaa, 0, false, msaa_surface, nullptr, 2);
-        } else {
-            g::d3d_dev->CreateRenderTarget(w, h, fmt, msaa, 0, false, msaa_surface, nullptr);
+        const HRESULT surface_result = multiview
+            ? g::d3d_vr->CreateMultiViewRenderTarget(w, h, fmt, msaa, 0, false, msaa_surface, nullptr, 2)
+            : g::d3d_dev->CreateRenderTarget(w, h, fmt, msaa, 0, false, msaa_surface, nullptr);
+        if (FAILED(surface_result) || !*msaa_surface) {
+            dbg("D3D initialization failed: CreateRenderTarget");
+            return false;
         }
     }
-    ret |= g::d3d_dev->CreateTexture(w, h, 1, D3DUSAGE_RENDERTARGET, fmt, D3DPOOL_DEFAULT, target_texture, *shared_handle == nullptr ? nullptr : shared_handle);
-    if (ret != D3D_OK || *shared_handle == INVALID_HANDLE_VALUE) {
-        dbg("D3D initialization failed: CreateRenderTarget");
+
+    const HRESULT texture_result = g::d3d_dev->CreateTexture(
+        w, h, 1, D3DUSAGE_RENDERTARGET, fmt, D3DPOOL_DEFAULT,
+        target_texture, *shared_handle == nullptr ? nullptr : shared_handle);
+    if (FAILED(texture_result) || !*target_texture || *shared_handle == INVALID_HANDLE_VALUE) {
+        dbg("D3D initialization failed: CreateTexture for render target");
         return false;
     }
     static D3DFORMAT depth_stencil_format;
@@ -107,13 +109,11 @@ bool create_render_target(
         depth_stencil_format = wantedFormats[i];
         dbg(std::format("Using {} as depthstencil format", (int)depth_stencil_format));
     } else {
-        if (multiview) {
-            ret |= g::d3d_vr->CreateMultiViewDepthStencilSurface(w, h, depth_stencil_format, msaa, 0, true, depth_stencil_surface, nullptr, 2);
-        } else {
-            ret |= g::d3d_dev->CreateDepthStencilSurface(w, h, depth_stencil_format, msaa, 0, true, depth_stencil_surface, nullptr);
-        }
-        if (FAILED(ret)) {
-            dbg("D3D initialization failed: CreateRenderTarget");
+        const HRESULT depth_result = multiview
+            ? g::d3d_vr->CreateMultiViewDepthStencilSurface(w, h, depth_stencil_format, msaa, 0, true, depth_stencil_surface, nullptr, 2)
+            : g::d3d_dev->CreateDepthStencilSurface(w, h, depth_stencil_format, msaa, 0, true, depth_stencil_surface, nullptr);
+        if (FAILED(depth_result) || !*depth_stencil_surface) {
+            dbg("D3D initialization failed: CreateDepthStencilSurface");
             return false;
         }
     }
