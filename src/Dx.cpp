@@ -235,6 +235,9 @@ namespace dx {
 
     HRESULT __stdcall CreateVertexShader(IDirect3DDevice9* This, const DWORD* pFunction, IDirect3DVertexShader9** ppShader)
     {
+        if (!g::game)
+            return g::hooks::create_vertex_shader.call(This, pFunction, ppShader);
+
         if (!g::spirv_change_multiview_access || !g::spirv_optimize_multiview) {
             if (auto patcher = LoadLibrary("Plugins/openRBRVR/multiviewpatcher.dll"); patcher) {
                 g::spirv_change_multiview_access = reinterpret_cast<MultiViewPatchFn>(GetProcAddress(patcher, "ChangeSPIRVMultiViewDataAccessLocation"));
@@ -334,6 +337,9 @@ namespace dx {
 
     HRESULT __stdcall GetVertexShader(IDirect3DDevice9* This, IDirect3DVertexShader9** pShader)
     {
+        if (!g::game)
+            return g::hooks::get_vertex_shader.call(This, pShader);
+
         const auto ret = g::hooks::get_vertex_shader.call(This, pShader);
         if (multiview_rendering_enabled()) {
             auto shader_it = std::find(g::base_game_shaders.cbegin(), g::base_game_shaders.cend(), *pShader);
@@ -361,6 +367,9 @@ namespace dx {
 
     HRESULT __stdcall SetVertexShader(IDirect3DDevice9* This, IDirect3DVertexShader9* pShader)
     {
+        if (!g::game)
+            return g::hooks::set_vertex_shader.call(This, pShader);
+
         IDirect3DVertexShader9* shader = pShader;
         if (multiview_rendering_enabled()) {
             auto shader_it = std::find(g::base_game_shaders.cbegin(), g::base_game_shaders.cend(), pShader);
@@ -574,6 +583,9 @@ namespace dx {
 
     HRESULT __stdcall Present(IDirect3DDevice9* This, const RECT* pSourceRect, const RECT* pDestRect, HWND hDestWindowOverride, const RGNDATA* pDirtyRegion)
     {
+        if (!g::game)
+            return g::hooks::present.call(This, pSourceRect, pDestRect, hDestWindowOverride, pDirtyRegion);
+
         auto* vrContext = g::vr ? g::vr->get_current_render_context() : nullptr;
         if (g::vr && !g::vr_error && vrContext) [[likely]] {
             auto shouldRender = g::current_2d_render_target && !(rbr::is_loading_btb_stage() && !g::cfg.draw_loading_screen);
@@ -688,6 +700,9 @@ namespace dx {
     }
     HRESULT __stdcall SetVertexShaderConstantF(IDirect3DDevice9* This, UINT StartRegister, const float* pConstantData, UINT Vector4fCount)
     {
+        if (!g::game)
+            return g::hooks::set_vertex_shader_constant_f.call(This, StartRegister, pConstantData, Vector4fCount);
+
         IDirect3DVertexShader9* shader;
         if (auto ret = g::d3d_dev->GetVertexShader(&shader); ret != D3D_OK) {
             dbg("Could not get vertex shader");
@@ -855,6 +870,9 @@ namespace dx {
 
     HRESULT __stdcall SetTransform(IDirect3DDevice9* This, D3DTRANSFORMSTATETYPE State, const D3DMATRIX* pMatrix)
     {
+        if (!g::game)
+            return g::hooks::set_transform.call(This, State, pMatrix);
+
         if (g::vr_render_target) {
             const auto target = g::vr_render_target.value();
 
@@ -931,6 +949,9 @@ namespace dx {
 
     HRESULT __stdcall BTB_SetRenderTarget(IDirect3DDevice9* This, DWORD RenderTargetIndex, IDirect3DSurface9* pRenderTarget)
     {
+        if (!g::game)
+            return g::hooks::btb_set_render_target.call(This, RenderTargetIndex, pRenderTarget);
+
         // This was found purely by luck after testing all kinds of things.
         // For some reason, if this call is called with the original This pointer (from RBRRX)
         // plugins switching the render target (i.e. RBRHUD) will cause the stage geometry
@@ -941,6 +962,9 @@ namespace dx {
 
     HRESULT __stdcall DrawPrimitive(IDirect3DDevice9* This, D3DPRIMITIVETYPE PrimitiveType, UINT StartVertex, UINT PrimitiveCount)
     {
+        if (!g::game)
+            return g::hooks::draw_primitive.call(This, PrimitiveType, StartVertex, PrimitiveCount);
+
         if (rbr::is_on_btb_stage()) {
             IDirect3DVertexShader9* shader = nullptr;
             if (SUCCEEDED(g::d3d_dev->GetVertexShader(&shader)) && shader) {
@@ -964,6 +988,9 @@ namespace dx {
 
     HRESULT __stdcall DrawIndexedPrimitive(IDirect3DDevice9* This, D3DPRIMITIVETYPE PrimitiveType, INT BaseVertexIndex, UINT MinVertexIndex, UINT NumVertices, UINT startIndex, UINT primCount)
     {
+        if (!g::game)
+            return g::hooks::draw_indexed_primitive.call(This, PrimitiveType, BaseVertexIndex, MinVertexIndex, NumVertices, startIndex, primCount);
+
         IDirect3DVertexShader9* shader = nullptr;
         IDirect3DBaseTexture9* texture = nullptr;
         const HRESULT shader_result = g::d3d_dev->GetVertexShader(&shader);
@@ -1014,6 +1041,9 @@ namespace dx {
 
     HRESULT __stdcall EndStateBlock(IDirect3DDevice9* This, IDirect3DStateBlock9** ppSB)
     {
+        if (!g::game)
+            return g::hooks::end_state_block.call(This, ppSB);
+
         const auto ret = g::hooks::end_state_block.call(This, ppSB);
 
         // EndStateBlock can fail without returning a state block. Keep the
@@ -1044,6 +1074,9 @@ namespace dx {
 
     HRESULT __stdcall ApplyStateBlock(IDirect3DStateBlock9* This)
     {
+        if (!g::game)
+            return g::hooks::apply_state_block.call(This);
+
         struct ApplyingStateBlockScope {
             bool previous;
 
@@ -1062,6 +1095,9 @@ namespace dx {
 
     HRESULT __stdcall SetRenderState(IDirect3DDevice9* This, D3DRENDERSTATETYPE State, DWORD Value)
     {
+        if (!g::game)
+            return g::hooks::set_render_state.call(This, State, Value);
+
         DWORD val = Value;
 
         if (rbr::should_use_reverse_z_buffer() && !g::applying_state_block) [[likely]] {
@@ -1095,6 +1131,9 @@ namespace dx {
 
     HRESULT __stdcall Clear(IDirect3DDevice9* This, DWORD Count, const D3DRECT* pRects, DWORD Flags, D3DCOLOR Color, float Z, DWORD Stencil)
     {
+        if (!g::game)
+            return g::hooks::clear.call(This, Count, pRects, Flags, Color, Z, Stencil);
+
         // Invert the Z value if reverse Z buffer is in use
 
         if (rbr::should_use_reverse_z_buffer()) [[likely]] {
@@ -1106,6 +1145,9 @@ namespace dx {
 
     HRESULT __stdcall Reset(IDirect3DDevice9* This, D3DPRESENT_PARAMETERS* pPresentationParameters)
     {
+        if (!g::game)
+            return g::hooks::reset.call(This, pPresentationParameters);
+
         if (This != g::d3d_dev || !g::vr || g::vr->get_runtime_type() != OPENVR)
             return g::hooks::reset.call(This, pPresentationParameters);
 
@@ -1205,6 +1247,9 @@ namespace dx {
         D3DPRESENT_PARAMETERS* pPresentationParameters,
         IDirect3DDevice9** ppReturnedDeviceInterface)
     {
+        if (!g::game)
+            return g::hooks::create_device.call(This, Adapter, DeviceType, hFocusWindow, BehaviorFlags, pPresentationParameters, ppReturnedDeviceInterface);
+
         // This plugin keeps one global D3D9 device and one set of device hooks.
         // A second CreateDevice call would replace the VR interface and render
         // resources while the existing hooks still target the first device.
@@ -1386,6 +1431,9 @@ namespace dx {
 
     IDirect3D9* __stdcall Direct3DCreate9(UINT SDKVersion)
     {
+        if (!g::game)
+            return g::hooks::create.call(SDKVersion);
+
         // The plugin keeps one global VR runtime and one global D3D9 device
         // hook set. Do not replace an existing runtime on repeated factory calls.
         bool createdRuntime = false;
