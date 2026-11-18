@@ -150,15 +150,22 @@ void OpenVR::init(IDirect3DDevice9* dev, IDirect3DVR9** vrdev,
     dbg("VR init successful\n");
 }
 
-void OpenVR::shutdown_device_resources()
+HRESULT OpenVR::shutdown_device_resources(bool requireSuccessfulIdle)
 {
     discard_prepared_frames();
+
+    if (!g::d3d_vr && requireSuccessfulIdle) {
+        dbg("OpenVR device-idle wait unavailable: D3D9VR proxy is missing");
+        return D3DERR_NOTAVAILABLE;
+    }
 
     if (g::d3d_vr) {
         const HRESULT idleResult = g::d3d_vr->WaitDeviceIdle(true);
         if (FAILED(idleResult)) {
             dbg(std::format("OpenVR device-idle wait failed before resource release (HRESULT 0x{:08X})",
                 static_cast<uint32_t>(idleResult)));
+            if (requireSuccessfulIdle)
+                return idleResult;
         }
     }
 
@@ -202,11 +209,14 @@ void OpenVR::shutdown_device_resources()
 
     m_frameState = {};
     m_framesPrepared = false;
+    return D3D_OK;
 }
 
 void OpenVR::shutdown_vr()
 {
-    shutdown_device_resources();
+    // Final teardown remains best-effort: unlike Reset, object destruction
+    // cannot be rolled back if the runtime refuses an idle wait.
+    shutdown_device_resources(false);
 
     // The x86 Background session belongs to the plugin process and survives
     // device Reset, but is released during final runtime shutdown.
