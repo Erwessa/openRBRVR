@@ -1199,10 +1199,10 @@ namespace dx {
         g::vr_render_target.reset();
         g::vr_error = false;
 
-        // Shader patch bookkeeping is frame/device state. Do not carry a
-        // partially patched or pending optimization batch across Reset.
+        // Discard the pending per-frame optimization batch, but retain the
+        // optimized-shader markers: Reset does not destroy the BTB shader
+        // objects, and their SPIR-V remains patched for their lifetime.
         g::patched_btb_shaders.clear();
-        g::optimized_btb_shaders.clear();
         {
             std::lock_guard lock(g::deferred_shader_constants_mutex);
             g::deferred_shader_constants.clear();
