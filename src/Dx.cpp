@@ -120,7 +120,11 @@ namespace dx {
             // Keep the last known pair so a game that updates only VIEW or
             // only PROJECTION can still publish a coherent current pair.
             // The x64 copy is invalidated each eye and refreshed on change.
-            raw_game_camera_dirty = false;
+            // Re-publish the last coherent pair even when RBR leaves one or
+            // both D3D9 transforms unchanged this frame. The x64 cache is
+            // invalidated below, so without this the RTX path would fall back
+            // to the already eye-transformed D3D9 matrices.
+            raw_game_camera_dirty = raw_game_view_valid && raw_game_projection_valid;
             if (g::d3d_vr) {
                 D3D9_GAME_CAMERA camera{};
                 camera.Version = D3D9_GAME_CAMERA_VERSION;
