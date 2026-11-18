@@ -770,7 +770,9 @@ namespace dx {
                         const auto& eyepos = g::vr->get_eye_pos(right);
                         const auto& pose = g::vr->get_pose(right);
                         const auto mvp = glm::transpose(projection * eyepos * pose * g::flip_z_matrix * rbr::get_horizon_lock_matrix() * mv);
-                        ret |= g::hooks::set_vertex_shader_constant_f.call(g::d3d_dev, reg + 4, glm::value_ptr(mvp), Vector4fCount);
+                        const HRESULT rightResult = g::hooks::set_vertex_shader_constant_f.call(g::d3d_dev, reg + 4, glm::value_ptr(mvp), Vector4fCount);
+                        if (SUCCEEDED(ret) && FAILED(rightResult))
+                            ret = rightResult;
                     }
                     return ret;
                 } else if (StartRegister == 20) {
@@ -792,7 +794,9 @@ namespace dx {
 
                     auto ret = g::hooks::set_vertex_shader_constant_f.call(g::d3d_dev, reg, glm::value_ptr(m), Vector4fCount);
                     if (multiview_rendering_enabled()) {
-                        ret |= g::hooks::set_vertex_shader_constant_f.call(g::d3d_dev, reg + 4, glm::value_ptr(m), Vector4fCount);
+                        const HRESULT rightResult = g::hooks::set_vertex_shader_constant_f.call(g::d3d_dev, reg + 4, glm::value_ptr(m), Vector4fCount);
+                        if (SUCCEEDED(ret) && FAILED(rightResult))
+                            ret = rightResult;
                     }
 
                     return ret;
@@ -908,7 +912,9 @@ namespace dx {
                     const auto multiview_target = render_target_counterpart(target);
                     fixedfunction::current_projection_matrix[multiview_target] = d3d_from_m4(g::vr->get_projection(multiview_target));
                     update_btb_comparison_matrices(target, multiview_target);
-                    ret |= g::hooks::set_transform.call(g::d3d_dev, D3DTS_PROJECTION_RIGHT, &fixedfunction::current_projection_matrix[multiview_target]);
+                    const HRESULT rightResult = g::hooks::set_transform.call(g::d3d_dev, D3DTS_PROJECTION_RIGHT, &fixedfunction::current_projection_matrix[multiview_target]);
+                    if (SUCCEEDED(ret) && FAILED(rightResult))
+                        ret = rightResult;
                 }
 
                 return ret;
@@ -922,7 +928,9 @@ namespace dx {
                     fixedfunction::current_view_matrix[multiview_target] = d3d_from_m4(
                         g::vr->get_eye_pos(multiview_target) * g::vr->get_pose(multiview_target) * g::flip_z_matrix * rbr::get_horizon_lock_matrix() * m4_from_d3d(*pMatrix));
                     update_btb_comparison_matrices(target, multiview_target);
-                    ret |= g::hooks::set_transform.call(g::d3d_dev, D3DTS_VIEW_RIGHT, &fixedfunction::current_view_matrix[multiview_target]);
+                    const HRESULT rightResult = g::hooks::set_transform.call(g::d3d_dev, D3DTS_VIEW_RIGHT, &fixedfunction::current_view_matrix[multiview_target]);
+                    if (SUCCEEDED(ret) && FAILED(rightResult))
+                        ret = rightResult;
                 }
 
                 return ret;
