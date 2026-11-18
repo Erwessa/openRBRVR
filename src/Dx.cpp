@@ -641,16 +641,17 @@ namespace dx {
         g::current_frames++;
 
         if (g::d3d_vr) {
-            for (auto& it : g::patched_btb_shaders) {
-                if (optimize_spirv_shader(it.first)) {
-                    g::optimized_btb_shaders.insert(it.first);
+            for (auto it = g::patched_btb_shaders.begin(); it != g::patched_btb_shaders.end(); ) {
+                if (optimize_spirv_shader(it->first)) {
+                    g::optimized_btb_shaders.insert(it->first);
+                    it = g::patched_btb_shaders.erase(it);
                 } else {
-                    dbg("Shader optimization failed!");
+                    dbg("Shader optimization failed; retaining patch state for retry");
                     g::failed_multiview_btb_shader_optimizations++;
+                    ++it;
                 }
             }
         }
-        g::patched_btb_shaders.clear();
 
         if (FAILED(ret)) {
             dbg(std::format("D3D9 Present failed (HRESULT 0x{:08X}); skipping OpenVR frame submission", static_cast<uint32_t>(ret)));
