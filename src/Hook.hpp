@@ -3,7 +3,7 @@
 #include <MinHook.h>
 #include <stdexcept>
 
-// RAII wrapper for MinHook
+// Process-lifetime wrapper for MinHook entries owned by the plugin DLL.
 template <typename T>
 struct Hook {
     T call;
@@ -97,10 +97,10 @@ struct Hook {
     Hook& operator=(const Hook&) = delete;
     Hook& operator=(Hook&&) = delete;
 
-    ~Hook()
-    {
-        reset();
-    }
+    // Global hooks intentionally live until process termination. In
+    // particular, never call MinHook from a CRT global destructor: DLL
+    // detach runs under the loader lock. Controlled rollback paths use reset().
+    ~Hook() = default;
 };
 
 template <typename... Hooks>
