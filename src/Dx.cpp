@@ -1470,6 +1470,7 @@ namespace dx {
             // and VR objects quarantined for the remaining active detours.
             const bool hooksDisabled = disable_hooks(
                 g::hooks::end_state_block,
+                g::hooks::apply_state_block,
                 g::hooks::reset,
                 g::hooks::clear,
                 g::hooks::set_render_state,
@@ -1489,6 +1490,7 @@ namespace dx {
                 // Removing a disabled hook may still fail. Its Hook object
                 // retains ownership and a later install() can re-enable it.
                 g::hooks::end_state_block.reset();
+                g::hooks::apply_state_block.reset();
                 g::hooks::reset.reset();
                 g::hooks::clear.reset();
                 g::hooks::set_render_state.reset();
