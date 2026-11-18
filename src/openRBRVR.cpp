@@ -64,10 +64,10 @@ openRBRVR::openRBRVR(IRBRGame* g)
     }
 
     // These hooks are owned by the DLL and remain installed across plugin instances.
-    // Reuse the complete set instead of attempting duplicate MinHook registrations.
-    if (!g::hooks::create.src) {
-        try {
-            g::hooks::create.install(d3dcreate, dx::Direct3DCreate9);
+    // Hook::install re-enables a matching retained entry and creates missing entries,
+    // allowing recovery after a partial rollback.
+    try {
+        g::hooks::create.install(d3dcreate, dx::Direct3DCreate9);
             g::hooks::render.install(*reinterpret_cast<decltype(rbr::render)*>(rbr::get_render_function_addr()), rbr::render);
 
             const auto addrs = rbr::get_render_particles_function_addrs();
@@ -105,9 +105,8 @@ openRBRVR::openRBRVR(IRBRGame* g)
                 dbg("Could not disable every RBR hook; retaining hook ownership for retry");
             }
 
-            dbg(e.what());
-            MessageBoxA(nullptr, e.what(), "Hooking failed", MB_OK);
-        }
+        dbg(e.what());
+        MessageBoxA(nullptr, e.what(), "Hooking failed", MB_OK);
     }
     g::cfg = g::saved_cfg = Config::from_path("Plugins");
     g::draw_overlay_border = (g::cfg.debug && g::cfg.debug_mode == 0);
