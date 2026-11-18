@@ -5,6 +5,7 @@
 #include "Util.hpp"
 #include "VR.hpp"
 
+#include "OpenVR.hpp"
 #include "OpenXR.hpp"
 #include <ranges>
 
