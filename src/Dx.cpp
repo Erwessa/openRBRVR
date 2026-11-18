@@ -402,7 +402,7 @@ namespace dx {
         // As we now have the shader present, apply the constants so we run
         // our shader patching and data relocation correctly.
         if (SUCCEEDED(ret) && pShader) {
-            // Detach the pending batch while holding the map lock, then replay
+            // Detach the pending batch while holding the queue lock, then replay
             // it without the lock because SetVertexShaderConstantF re-enters
             // this hook and performs D3D9/Bridge work.
             decltype(g::deferred_shader_constants) deferred_constants;
