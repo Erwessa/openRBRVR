@@ -365,7 +365,11 @@ namespace rbr {
 
         if (g::game && !g::writetext_hook.call && g::game_mode == GameMode::MainMenu) {
             auto vtbl = get_vtable<IRBRGameVtbl>(g::game);
-            g::writetext_hook = Hook(vtbl->WriteText, WriteText);
+            try {
+                g::writetext_hook = Hook(vtbl->WriteText, WriteText);
+            } catch (const std::runtime_error& e) {
+                dbg(std::format("Could not install WriteText hook: {}", e.what()));
+            }
         }
 
         if (!g::hooks::load_texture.call) [[unlikely]] {
@@ -373,8 +377,10 @@ namespace rbr {
             if (!handle) {
                 dbg("Could not get handle for HedgeHog3D");
             } else {
-                if (!g::hooks::load_texture.call) {
+                try {
                     g::hooks::load_texture = Hook(*reinterpret_cast<decltype(load_texture)*>(handle + 0xAEC15), load_texture);
+                } catch (const std::runtime_error& e) {
+                    dbg(std::format("Could not install LoadTexture hook: {}", e.what()));
                 }
             }
         }
