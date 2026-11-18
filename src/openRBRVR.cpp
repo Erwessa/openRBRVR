@@ -99,6 +99,12 @@ openRBRVR::openRBRVR(IRBRGame* g)
 
 openRBRVR::~openRBRVR()
 {
+    // IRBRGame is borrowed from the host. Stop exposing it to process-lifetime
+    // hooks before tearing down this plugin instance.
+    if (g::game == game) {
+        g::game = nullptr;
+    }
+
     if (g::vr) {
         delete g::vr;
         g::vr = nullptr;
