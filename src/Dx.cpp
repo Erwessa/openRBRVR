@@ -117,8 +117,9 @@ namespace dx {
     {
         g::vr_render_target = eye;
         if (eye == LeftEye) {
-            raw_game_view_valid = false;
-            raw_game_projection_valid = false;
+            // Keep the last known pair so a game that updates only VIEW or
+            // only PROJECTION can still publish a coherent current pair.
+            // The x64 copy is invalidated each eye and refreshed on change.
             raw_game_camera_dirty = false;
             if (g::d3d_vr) {
                 D3D9_GAME_CAMERA camera{};
