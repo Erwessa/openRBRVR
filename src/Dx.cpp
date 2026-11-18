@@ -67,6 +67,32 @@ namespace dx {
         static D3DMATRIX current_worldviewproj_matrix[4];
     }
 
+    // Keep the unmodified game camera separate from the eye-specific matrices
+    // written to D3D9 while OpenRBRVR renders the left eye.
+    static D3DMATRIX raw_game_view{};
+    static D3DMATRIX raw_game_projection{};
+    static bool raw_game_view_valid = false;
+    static bool raw_game_projection_valid = false;
+    static bool raw_game_camera_dirty = false;
+
+    static void publish_raw_game_camera_if_dirty()
+    {
+        if (!g::vr_render_target || *g::vr_render_target != LeftEye ||
+            !g::d3d_vr || !raw_game_camera_dirty ||
+            !raw_game_view_valid || !raw_game_projection_valid)
+            return;
+
+        D3D9_GAME_CAMERA camera{};
+        camera.Version = D3D9_GAME_CAMERA_VERSION;
+        camera.Flags = D3D9_GAME_CAMERA_VALID;
+        camera.WorldToView = raw_game_view;
+        camera.ViewToProjection = raw_game_projection;
+        // A failed update leaves RTX on its existing D3D9 camera path. Do not
+        // retry on every draw; a later SetTransform pair can trigger a retry.
+        raw_game_camera_dirty = false;
+        g::d3d_vr->SetGameCamera(&camera);
+    }
+
     using rbr::GameMode;
 
     void free_btb_shaders()
@@ -90,6 +116,17 @@ namespace dx {
     void render_vr_eye(void* p, RenderTarget eye, bool clear)
     {
         g::vr_render_target = eye;
+        if (eye == LeftEye) {
+            raw_game_view_valid = false;
+            raw_game_projection_valid = false;
+            raw_game_camera_dirty = false;
+            if (g::d3d_vr) {
+                D3D9_GAME_CAMERA camera{};
+                camera.Version = D3D9_GAME_CAMERA_VERSION;
+                // Flags == 0 invalidates the previous eye's cached camera.
+                g::d3d_vr->SetGameCamera(&camera);
+            }
+        }
         if (g::vr->prepare_vr_rendering(g::d3d_dev, eye, clear)) {
             g::hooks::render.call(p);
             g::vr->render_hands(g::d3d_dev, eye);
@@ -902,6 +939,11 @@ namespace dx {
             const auto target = g::vr_render_target.value();
 
             if (State == D3DTS_PROJECTION) {
+                if (target == LeftEye) {
+                    raw_game_projection = *pMatrix;
+                    raw_game_projection_valid = true;
+                    raw_game_camera_dirty = true;
+                }
                 // Store the inverse of the matrix passed to the function in order to cancel it out later on
                 shader::current_projection_matrix = m4_from_d3d(*pMatrix);
                 shader::current_projection_matrix_inverse = glm::inverse(shader::current_projection_matrix);
@@ -921,6 +963,11 @@ namespace dx {
 
                 return ret;
             } else if (State == D3DTS_VIEW) {
+                if (target == LeftEye) {
+                    raw_game_view = *pMatrix;
+                    raw_game_view_valid = true;
+                    raw_game_camera_dirty = true;
+                }
                 fixedfunction::current_view_matrix[target] = d3d_from_m4(
                     g::vr->get_eye_pos(target) * g::vr->get_pose(target) * g::flip_z_matrix * rbr::get_horizon_lock_matrix() * m4_from_d3d(*pMatrix));
                 auto ret = g::hooks::set_transform.call(g::d3d_dev, D3DTS_VIEW_LEFT, &fixedfunction::current_view_matrix[target]);
@@ -1012,6 +1059,7 @@ namespace dx {
                 }
             }
         }
+        publish_raw_game_camera_if_dirty();
         return g::hooks::draw_primitive.call(This, PrimitiveType, StartVertex, PrimitiveCount);
     }
 
@@ -1029,6 +1077,7 @@ namespace dx {
                 shader->Release();
             if (texture)
                 texture->Release();
+            publish_raw_game_camera_if_dirty();
             return g::hooks::draw_indexed_primitive.call(
                 g::d3d_dev, PrimitiveType, BaseVertexIndex, MinVertexIndex, NumVertices, startIndex, primCount);
         }
@@ -1065,6 +1114,7 @@ namespace dx {
                 }
             }
         }
+        publish_raw_game_camera_if_dirty();
         return g::hooks::draw_indexed_primitive.call(g::d3d_dev, PrimitiveType, BaseVertexIndex, MinVertexIndex, NumVertices, startIndex, primCount);
     }
 
