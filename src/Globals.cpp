@@ -22,7 +22,7 @@ namespace g {
     IDirect3DSurface9* original_render_target = nullptr;
     IDirect3DSurface9* original_depth_stencil_target = nullptr;
     uint8_t* btb_track_status_ptr;
-    SeatMovement seat_movement_request;
+    std::atomic<SeatMovement> seat_movement_request { SeatMovement::MOVE_SEAT_STOP };
     bool seat_position_loaded;
     std::string dxvk_version = "Unknown";
     int target_fps;

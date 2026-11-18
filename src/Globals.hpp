@@ -9,6 +9,7 @@
 
 #include <d3d11.h>
 #include <d3d11_4.h>
+#include <atomic>
 #include <optional>
 
 // Forward declarations
@@ -94,7 +95,7 @@ namespace g {
     };
 
     // If a seat movement API call is made, the requested direction is stored here for later use
-    extern SeatMovement seat_movement_request;
+    extern std::atomic<SeatMovement> seat_movement_request;
 
     // Is a saved seat position loaded from disk for the current car
     extern bool seat_position_loaded;

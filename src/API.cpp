@@ -40,7 +40,7 @@ extern "C" __declspec(dllexport) int64_t openRBRVR_Exec(ApiOperation ops, uint64
         if (value > static_cast<uint64_t>(MOVE_SEAT_DOWN)) {
             return 1;
         }
-        g::seat_movement_request = static_cast<SeatMovement>(value);
+        g::seat_movement_request.store(static_cast<SeatMovement>(value), std::memory_order_relaxed);
     }
     if (ops & RECENTER_VR_VIEW) {
         if (!g::vr) {

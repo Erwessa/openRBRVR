@@ -537,7 +537,8 @@ namespace rbr {
                 static int seat_still_frames = 0;
                 static bool seat_saved = true;
 
-                if (update_seat_translation(g::seat_movement_request)) {
+                const auto seatMovement = g::seat_movement_request.load(std::memory_order_relaxed);
+                if (update_seat_translation(seatMovement)) {
                     seat_saved = false;
                     seat_still_frames = 0;
                     force_camera_change(reinterpret_cast<void*>(ptr), SEAT_MOVE_MAGIC);
@@ -553,7 +554,7 @@ namespace rbr {
                     }
                     seat_saved = true;
                 }
-            } else if (g::seat_movement_request) {
+            } else if (g::seat_movement_request.load(std::memory_order_relaxed) != SeatMovement::MOVE_SEAT_STOP) {
                 if (g::game) g::game->WriteGameMessage("openRBRVR seat position adjustment is implemented for internal camera only.", 2.0, 100.0, 100.0);
             }
         }
