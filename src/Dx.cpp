@@ -11,6 +11,7 @@
 #include <atomic>
 #include <exception>
 #include <mutex>
+#include <memory>
 #include <array>
 #include <gtx/matrix_decompose.hpp>
 #include <unordered_set>
@@ -707,10 +708,19 @@ namespace dx {
         if (!g::game)
             return g::hooks::set_vertex_shader_constant_f.call(This, StartRegister, pConstantData, Vector4fCount);
 
-        IDirect3DVertexShader9* shader;
-        if (auto ret = g::d3d_dev->GetVertexShader(&shader); ret != D3D_OK) {
+        IDirect3DVertexShader9* shader = nullptr;
+        const auto shaderResult = g::d3d_dev->GetVertexShader(&shader);
+        // GetVertexShader returns an AddRef'd interface. Keep that reference
+        // scoped so every path (including the ordinary pass-through path)
+        // releases it.
+        const auto releaseShader = [](IDirect3DVertexShader9* value) {
+            if (value)
+                value->Release();
+        };
+        std::unique_ptr<IDirect3DVertexShader9, decltype(releaseShader)> shaderRef(shader, releaseShader);
+        if (shaderResult != D3D_OK) {
             dbg("Could not get vertex shader");
-            return ret;
+            return shaderResult;
         }
 
         auto is_base_shader = true;
@@ -731,7 +741,6 @@ namespace dx {
                 g::deferred_shader_constants.insert_or_assign(StartRegister, m);
             }
         } else if (shader && is_base_shader && Vector4fCount == 4) {
-            shader->Release();
 
             if (g::vr_render_target) {
                 const auto target = g::vr_render_target.value();
@@ -831,7 +840,6 @@ namespace dx {
                 }
             }
 
-            shader->Release();
 
             // We don't know which one of these this matrix is, so we test it against known candidates.
             // These are the different ones passed to shaders, gathered from the BTB stage list of RSF.
