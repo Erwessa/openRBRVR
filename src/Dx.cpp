@@ -236,6 +236,7 @@ namespace dx {
         }
 
         static int i = 0;
+        static std::array<size_t, 40> base_game_shader_indices {};
 
         auto ret = g::hooks::create_vertex_shader.call(g::d3d_dev, pFunction, ppShader);
         if (FAILED(ret) || !ppShader || !*ppShader) {
@@ -244,7 +245,9 @@ namespace dx {
 
         if (i < 40) {
             // These are the base game shaders for RBR that need
-            // to be patched with the VR projection.
+            // to be patched with the VR projection. Keep their indices
+            // separate from external shaders registered through the API.
+            base_game_shader_indices[i] = g::base_game_shaders.size();
             g::base_game_shaders.push_back(*ppShader);
         } else {
             // Same for BTB shaders that are loaded during the stage load
@@ -299,8 +302,9 @@ namespace dx {
             g::base_shader_data_end_register = 110;
 
             for (auto j = 0; j < i; ++j) {
-                const auto original_shader = g::base_game_shaders[j];
-                const auto multiview_shader = g::base_game_multiview_shaders[j];
+                const auto shader_index = base_game_shader_indices[j];
+                const auto original_shader = g::base_game_shaders[shader_index];
+                const auto multiview_shader = g::base_game_multiview_shaders[shader_index];
 
                 if (multiview_shader == original_shader) {
                     // Creation already fell back to the game-owned original;
@@ -312,7 +316,7 @@ namespace dx {
                     // If the patching fails, use the original shader
                     // This will probably cause rendering glitches but should not crash the game
                     multiview_shader->Release();
-                    g::base_game_multiview_shaders[j] = original_shader;
+                    g::base_game_multiview_shaders[shader_index] = original_shader;
                     g::failed_multiview_base_game_shaders++;
                 }
             }
