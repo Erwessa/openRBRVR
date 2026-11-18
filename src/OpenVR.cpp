@@ -40,11 +40,16 @@ OpenVR::OpenVR()
 {
     // Initialize the x86 OpenVR client before Direct3DCreate9 starts Vulkan.
     // The x64 Bridge Server owns the independent Scene session and compositor.
-    if (!vr::VR_IsHmdPresent())
+    dbg("OpenVR checkpoint: before VR_IsHmdPresent");
+    const bool hmdPresent = vr::VR_IsHmdPresent();
+    dbg(hmdPresent ? "OpenVR checkpoint: HMD present" : "OpenVR checkpoint: HMD not present");
+    if (!hmdPresent)
         throw std::runtime_error("OpenVR HMD is not present");
 
     vr::EVRInitError error = vr::VRInitError_None;
+    dbg("OpenVR checkpoint: before VR_Init(VRApplication_Background)");
     auto* system = vr::VR_Init(&error, vr::VRApplication_Background);
+    dbg(std::format("OpenVR checkpoint: VR_Init returned error {} and system {}", static_cast<int>(error), system ? "non-null" : "null"));
     if (error != vr::VRInitError_None || system == nullptr) {
         const auto* description = vr::VR_GetVRInitErrorAsEnglishDescription(error);
         throw std::runtime_error(std::format("OpenVR background initialization failed: {}",
@@ -88,12 +93,16 @@ void OpenVR::init(IDirect3DDevice9* dev, IDirect3DVR9** vrdev,
     eye_pos[LeftEye] = glm::identity<M4>();
     eye_pos[RightEye] = glm::identity<M4>();
 
+    dbg("OpenVR checkpoint: before Bridge InitializeOpenVRScene");
     const HRESULT sceneResult = g::d3d_vr->InitializeOpenVRScene();
+    dbg(std::format("OpenVR checkpoint: InitializeOpenVRScene returned 0x{:08X}", static_cast<uint32_t>(sceneResult)));
     if (FAILED(sceneResult))
         throw std::runtime_error(std::format("OpenVR scene initialization failed (HRESULT 0x{:08X})",
             static_cast<uint32_t>(sceneResult)));
 
+    dbg("OpenVR checkpoint: before initial AcquireOpenVRFrame");
     const HRESULT frameResult = g::d3d_vr->AcquireOpenVRFrame(&m_frameState);
+    dbg(std::format("OpenVR checkpoint: initial AcquireOpenVRFrame returned 0x{:08X}, frame version {}, size {}x{}", static_cast<uint32_t>(frameResult), m_frameState.Version, m_frameState.RecommendedWidth, m_frameState.RecommendedHeight));
     if (FAILED(frameResult) || m_frameState.Version != D3D9_OPENVR_FRAME_STATE_VERSION
         || m_frameState.RecommendedWidth == 0 || m_frameState.RecommendedHeight == 0)
         throw std::runtime_error(std::format("OpenVR initial frame query failed (HRESULT 0x{:08X})",
@@ -122,6 +131,7 @@ void OpenVR::init(IDirect3DDevice9* dev, IDirect3DVR9** vrdev,
             "OpenVR could not reset multiview state before creating render contexts (HRESULT 0x{:08X})",
             static_cast<uint32_t>(disableMultiviewResult)));
 
+    dbg("OpenVR checkpoint: multiview validation complete");
     const auto defaultMsaa = g::cfg.gfx.at("default").msaa.value_or(D3DMULTISAMPLE_NONE);
 
     try {
@@ -138,9 +148,13 @@ void OpenVR::init(IDirect3DDevice9* dev, IDirect3DVR9** vrdev,
             };
             auto& storedContext = render_contexts[gfx.first];
             storedContext = ctx;
+            dbg(std::format("OpenVR checkpoint: before init_surfaces for context '{}' ({}x{})", gfx.first, wss, hss));
             init_surfaces(dev, storedContext, companionWindowWidth, companionWindowHeight);
+            dbg(std::format("OpenVR checkpoint: init_surfaces completed for context '{}'", gfx.first));
         }
+        dbg("OpenVR checkpoint: render contexts created; before selecting default");
         set_render_context("default");
+        dbg("OpenVR checkpoint: default context selected; before initial pose update");
         if (!update_vr_poses())
             throw std::runtime_error("OpenVR could not acquire its initial tracking snapshot");
     } catch (const std::runtime_error&) {
