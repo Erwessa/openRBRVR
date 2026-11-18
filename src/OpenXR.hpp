@@ -7,6 +7,7 @@
 #define XR_USE_PLATFORM_WIN32
 #include <openxr_platform.h>
 #include <openxr_reflection.h>
+#include <atomic>
 #include <optional>
 
 #include "Config.hpp"
@@ -57,7 +58,7 @@ private:
     XrPosef view_pose {};
     XrViewConfigurationType primary_view_config_type {};
     InputState input_state; // For sending poses to OpenXR-MotionCompensation https://github.com/BuzzteeBear/OpenXR-MotionCompensation
-    bool reset_view_requested = false;
+    std::atomic<bool> reset_view_requested { false };
     HandTracking hand_tracking;
     HandMesh hand_mesh;
     IDirect3DTexture9* glove_texture = nullptr;

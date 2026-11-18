@@ -1268,8 +1268,7 @@ bool OpenXR::update_vr_poses()
         // So we do nothing about it.
     }
 
-    if (reset_view_requested) {
-        reset_view_requested = false;
+    if (reset_view_requested.exchange(false, std::memory_order_acq_rel)) {
         recenter_view();
     }
 
@@ -1535,7 +1534,7 @@ FrameTimingInfo OpenXR::get_frame_timing()
 
 void OpenXR::reset_view()
 {
-    reset_view_requested = true;
+    reset_view_requested.store(true, std::memory_order_release);
 }
 
 void OpenXR::recenter_view()
