@@ -5,7 +5,6 @@
 #include "Globals.hpp"
 #include "HandTexture.hpp"
 #include "Util.hpp"
-#include <d3d9_interop.h>
 #include <gtx/quaternion.hpp>
 #include <ranges>
 
