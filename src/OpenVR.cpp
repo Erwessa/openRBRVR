@@ -80,6 +80,14 @@ void OpenVR::init(IDirect3DDevice9* dev, IDirect3DVR9** vrdev,
     if (!render_contexts.empty() || current_render_context)
         throw std::runtime_error("OpenVR initialization refused while old device resources remain");
 
+    // WaitGetPoses may succeed before the HMD has a valid tracked pose.
+    // Seed the retained-pose fallback so the first such frame never uses
+    // uninitialized GLM matrices.
+    hmd_pose[LeftEye] = glm::identity<M4>();
+    hmd_pose[RightEye] = glm::identity<M4>();
+    eye_pos[LeftEye] = glm::identity<M4>();
+    eye_pos[RightEye] = glm::identity<M4>();
+
     const HRESULT sceneResult = g::d3d_vr->InitializeOpenVRScene();
     if (FAILED(sceneResult))
         throw std::runtime_error(std::format("OpenVR scene initialization failed (HRESULT 0x{:08X})",
