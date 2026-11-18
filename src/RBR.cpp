@@ -464,9 +464,7 @@ namespace rbr {
                     dbg(std::format("Could not recreate D3D9VR proxy while restarting the VR session (HRESULT 0x{:08X})",
                         static_cast<uint32_t>(vrResult)));
                     g::session_recenter_frame_counter = 0;
-                    return;
-                }
-
+                } else {
                 try {
                     if (runtime == OPENVR) {
                         auto* openvr = new OpenVR();
@@ -492,6 +490,7 @@ namespace rbr {
                         g::d3d_vr = nullptr;
                     }
                     g::session_recenter_frame_counter = 0;
+                }
                 }
             }
         }
