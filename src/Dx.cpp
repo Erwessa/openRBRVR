@@ -1285,6 +1285,12 @@ namespace dx {
         if (FAILED(shutdownResult))
             return shutdownResult;
 
+        // Reset invalidates the D3D9 transform state and the x64 RTX camera
+        // snapshot. Do not republish a pre-reset game camera after recovery.
+        raw_game_view_valid = false;
+        raw_game_projection_valid = false;
+        raw_game_camera_dirty = false;
+
         if (g::original_render_target) {
             g::original_render_target->Release();
             g::original_render_target = nullptr;
