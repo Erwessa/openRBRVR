@@ -152,8 +152,13 @@ void OpenVR::shutdown_device_resources()
 {
     discard_prepared_frames();
 
-    if (g::d3d_vr)
-        g::d3d_vr->WaitDeviceIdle(true);
+    if (g::d3d_vr) {
+        const HRESULT idleResult = g::d3d_vr->WaitDeviceIdle(true);
+        if (FAILED(idleResult)) {
+            dbg(std::format("OpenVR device-idle wait failed before resource release (HRESULT 0x{:08X})",
+                static_cast<uint32_t>(idleResult)));
+        }
+    }
 
     for (auto& contextEntry : render_contexts) {
         auto& ctx = contextEntry.second;
