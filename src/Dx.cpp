@@ -1024,7 +1024,7 @@ namespace dx {
             if (!g::hooks::apply_state_block.src) {
                 auto vtbl = get_vtable<IDirect3DStateBlock9Vtbl>(*ppSB);
                 try {
-                    g::hooks::apply_state_block = Hook(vtbl->Apply, ApplyStateBlock);
+                    g::hooks::apply_state_block.install(vtbl->Apply, ApplyStateBlock);
                 } catch (const std::runtime_error& e) {
                     dbg(e.what());
                     return ret;
@@ -1268,18 +1268,18 @@ namespace dx {
         auto devvtbl = get_vtable<IDirect3DDevice9Vtbl>(dev);
         try {
             if (g::vr && g::vr->get_runtime_type() == OPENVR)
-                g::hooks::reset = Hook(devvtbl->Reset, Reset);
-            g::hooks::set_vertex_shader_constant_f = Hook(devvtbl->SetVertexShaderConstantF, SetVertexShaderConstantF);
-            g::hooks::set_transform = Hook(devvtbl->SetTransform, SetTransform);
-            g::hooks::present = Hook(devvtbl->Present, Present);
-            g::hooks::create_vertex_shader = Hook(devvtbl->CreateVertexShader, CreateVertexShader);
-            g::hooks::get_vertex_shader = Hook(devvtbl->GetVertexShader, GetVertexShader);
-            g::hooks::set_vertex_shader = Hook(devvtbl->SetVertexShader, SetVertexShader);
-            g::hooks::draw_indexed_primitive = Hook(devvtbl->DrawIndexedPrimitive, DrawIndexedPrimitive);
-            g::hooks::draw_primitive = Hook(devvtbl->DrawPrimitive, DrawPrimitive);
-            g::hooks::set_render_state = Hook(devvtbl->SetRenderState, SetRenderState);
-            g::hooks::clear = Hook(devvtbl->Clear, Clear);
-            g::hooks::end_state_block = Hook(devvtbl->EndStateBlock, EndStateBlock);
+                g::hooks::reset.install(devvtbl->Reset, Reset);
+            g::hooks::set_vertex_shader_constant_f.install(devvtbl->SetVertexShaderConstantF, SetVertexShaderConstantF);
+            g::hooks::set_transform.install(devvtbl->SetTransform, SetTransform);
+            g::hooks::present.install(devvtbl->Present, Present);
+            g::hooks::create_vertex_shader.install(devvtbl->CreateVertexShader, CreateVertexShader);
+            g::hooks::get_vertex_shader.install(devvtbl->GetVertexShader, GetVertexShader);
+            g::hooks::set_vertex_shader.install(devvtbl->SetVertexShader, SetVertexShader);
+            g::hooks::draw_indexed_primitive.install(devvtbl->DrawIndexedPrimitive, DrawIndexedPrimitive);
+            g::hooks::draw_primitive.install(devvtbl->DrawPrimitive, DrawPrimitive);
+            g::hooks::set_render_state.install(devvtbl->SetRenderState, SetRenderState);
+            g::hooks::clear.install(devvtbl->Clear, Clear);
+            g::hooks::end_state_block.install(devvtbl->EndStateBlock, EndStateBlock);
         } catch (const std::runtime_error& e) {
             dbg(e.what());
             MessageBoxA(hFocusWindow, e.what(), "Hooking failed", MB_OK);
@@ -1349,7 +1349,7 @@ namespace dx {
 
             IDirect3DDevice9Vtbl* rbrrxdev = reinterpret_cast<IDirect3DDevice9Vtbl*>(rx_addr + rbr_rx::DEVICE_VTABLE_OFFSET);
             try {
-                g::hooks::btb_set_render_target = Hook(rbrrxdev->SetRenderTarget, BTB_SetRenderTarget);
+                g::hooks::btb_set_render_target.install(rbrrxdev->SetRenderTarget, BTB_SetRenderTarget);
             } catch (const std::runtime_error& e) {
                 dbg(e.what());
                 MessageBoxA(hFocusWindow, e.what(), "Hooking failed", MB_OK);
@@ -1413,7 +1413,7 @@ namespace dx {
             }
         } else {
             try {
-                g::hooks::create_device = Hook(d3d_vtbl->CreateDevice, CreateDevice);
+                g::hooks::create_device.install(d3d_vtbl->CreateDevice, CreateDevice);
             } catch (const std::runtime_error& e) {
                 dbg(e.what());
                 MessageBoxA(nullptr, e.what(), "Hooking failed", MB_OK);
