@@ -19,7 +19,7 @@ public:
 
     void init(IDirect3DDevice9* dev, IDirect3DVR9** vrdev, uint32_t companionWindowWidth, uint32_t companionWindowHeight);
 
-    void shutdown_device_resources();
+    HRESULT shutdown_device_resources(bool requireSuccessfulIdle = false);
     void shutdown_vr() override;
     void discard_prepared_frames() override;
     void prepare_frames_for_hmd(IDirect3DDevice9* dev) override;
