@@ -21,6 +21,17 @@ struct D3D9_OPENVR_FRAME_STATE {
 };
 constexpr uint32_t D3D9_OPENVR_FRAME_STATE_VERSION = 2;
 
+struct D3D9_GAME_CAMERA {
+  uint32_t Version;
+  uint32_t Flags;
+  D3DMATRIX WorldToView;
+  D3DMATRIX ViewToProjection;
+};
+constexpr uint32_t D3D9_GAME_CAMERA_VERSION = 1;
+constexpr uint32_t D3D9_GAME_CAMERA_VALID = 1u;
+static_assert(sizeof(D3D9_GAME_CAMERA) == 136,
+  "D3D9_GAME_CAMERA must have an identical x86/x64 wire layout");
+
 enum class D3D9VRCommand : uint32_t {
   InitializeOpenVRScene = 1,
   AcquireOpenVRFrame,
@@ -40,6 +51,7 @@ enum class D3D9VRCommand : uint32_t {
   Flush,
   ImportFence,
   SignalFence,
+  SetGameCamera,
 };
 
 static_assert(sizeof(D3D9_OPENVR_FRAME_STATE) == 328,
@@ -95,4 +107,5 @@ IDirect3DVR9 : public IUnknown {
   virtual HRESULT STDMETHODCALLTYPE SubmitOpenVRFrame(IDirect3DSurface9* left, IDirect3DSurface9* right) = 0;
   virtual HRESULT STDMETHODCALLTYPE ResetOpenVRView() = 0;
   virtual HRESULT STDMETHODCALLTYPE GetOpenVRFrameTiming(D3D9_OPENVR_FRAME_TIMING* timing) = 0;
+  virtual HRESULT STDMETHODCALLTYPE SetGameCamera(const D3D9_GAME_CAMERA* camera) = 0;
 };
