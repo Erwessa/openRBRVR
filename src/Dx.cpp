@@ -40,7 +40,8 @@ namespace g {
     static std::unordered_set<IDirect3DVertexShader9*> optimized_btb_shaders;
     struct DeferredShaderConstant {
         uint32_t start_register;
-        std::array<float, 16> values;
+        UINT vector4f_count;
+        std::array<float, 20> values;
     };
     static std::vector<DeferredShaderConstant> deferred_shader_constants;
     static std::mutex deferred_shader_constants_mutex;
@@ -413,7 +414,7 @@ namespace dx {
             for (auto it = deferred_constants.cbegin(); it != deferred_constants.cend(); ++it) {
                 // We can just call our patched SetVertexShaderConstantF function
                 // It will handle patching the (BTB) shader etc. correctly
-                const HRESULT constantResult = SetVertexShaderConstantF(This, it->start_register, it->values.data(), 4);
+                const HRESULT constantResult = SetVertexShaderConstantF(This, it->start_register, it->values.data(), it->vector4f_count);
                 if (FAILED(constantResult)) {
                     // Preserve this and later values for a future successful bind.
                     // Do not overwrite newer writes that arrived while this batch
@@ -736,15 +737,15 @@ namespace dx {
         }
 
         auto reg = multiview_rendering_enabled() ? StartRegister + g::base_shader_data_end_register : StartRegister;
-        if (!shader && Vector4fCount == 4) {
+        if (!shader && (Vector4fCount == 4 || Vector4fCount == 5)) {
             // DirectX allows setting shader constants even though the shader isn't bound (yet)
             // Therefore we need to defer setting the constants for such shaders in order to be able to
             // correctly patch them for multiview and supply the data accordingly.
-            std::array<float, 16> m;
-            std::copy_n(pConstantData, 16, m.begin());
+            std::array<float, 20> m;
+            std::copy_n(pConstantData, Vector4fCount * 4, m.begin());
             {
                 std::lock_guard lock(g::deferred_shader_constants_mutex);
-                g::deferred_shader_constants.push_back({ StartRegister, m });
+                g::deferred_shader_constants.push_back({ StartRegister, Vector4fCount, m });
             }
         } else if (shader && is_base_shader && Vector4fCount == 4) {
 
