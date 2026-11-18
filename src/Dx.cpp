@@ -717,7 +717,7 @@ namespace dx {
             if (value)
                 value->Release();
         };
-        std::unique_ptr<IDirect3DVertexShader9, decltype(releaseShader)> shaderRef(shader, releaseShader);
+        [[maybe_unused]] std::unique_ptr<IDirect3DVertexShader9, decltype(releaseShader)> shaderRef(shader, releaseShader);
         if (shaderResult != D3D_OK) {
             dbg("Could not get vertex shader");
             return shaderResult;
