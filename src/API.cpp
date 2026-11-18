@@ -17,6 +17,24 @@ BOOL APIENTRY DllMain(HANDLE, DWORD, LPVOID)
 extern "C" __declspec(dllexport) IPlugin* RBR_CreatePlugin(IRBRGame* game)
 {
     if (!g::openrbrvr) {
+        // Process-lifetime detours point into this DLL. Pin the module before
+        // installing them so a host-side FreeLibrary cannot leave patched
+        // targets jumping into unmapped code. This runs outside DllMain.
+        static const DWORD modulePinError = [] {
+            HMODULE module = nullptr;
+            if (GetModuleHandleExW(
+                    GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_PIN,
+                    reinterpret_cast<LPCWSTR>(&RBR_CreatePlugin),
+                    &module)) {
+                return ERROR_SUCCESS;
+            }
+            return GetLastError();
+        }();
+        if (modulePinError != ERROR_SUCCESS) {
+            dbg(std::format("Could not pin openRBRVR.dll (error {})", modulePinError));
+            return nullptr;
+        }
+
         // Initialize MinHook once, outside DllMain and before installing any hooks.
         static const MH_STATUS minHookStatus = MH_Initialize();
         if (minHookStatus != MH_OK) {
