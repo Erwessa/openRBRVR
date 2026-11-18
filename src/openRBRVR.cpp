@@ -79,15 +79,31 @@ openRBRVR::openRBRVR(IRBRGame* g)
             g::hooks::set_camera_target.install(*reinterpret_cast<decltype(rbr::set_camera_target)*>(0x4663f0), rbr::set_camera_target);
             g::hooks::render_windscreen_effects.install(*reinterpret_cast<decltype(rbr::render_windscreen_effects)*>(rbr::get_address(0x452020)), rbr::render_windscreen_effects);
         } catch (const std::runtime_error& e) {
-            // Do not leave a partially installed set of RBR/DirectX hooks active.
-            g::hooks::render_windscreen_effects.reset();
-            g::hooks::set_camera_target.reset();
-            g::hooks::render_particles_4.reset();
-            g::hooks::render_particles_3.reset();
-            g::hooks::render_particles_2.reset();
-            g::hooks::render_particles.reset();
-            g::hooks::render.reset();
-            g::hooks::create.reset();
+            // Disable every hook before attempting rollback. If any detour
+            // cannot be disabled, retain the complete Hook ownership state so
+            // its trampoline and target are not lost while it may still run.
+            const bool hooksDisabled = disable_hooks(
+                g::hooks::render_windscreen_effects,
+                g::hooks::set_camera_target,
+                g::hooks::render_particles_4,
+                g::hooks::render_particles_3,
+                g::hooks::render_particles_2,
+                g::hooks::render_particles,
+                g::hooks::render,
+                g::hooks::create);
+
+            if (hooksDisabled) {
+                g::hooks::render_windscreen_effects.reset();
+                g::hooks::set_camera_target.reset();
+                g::hooks::render_particles_4.reset();
+                g::hooks::render_particles_3.reset();
+                g::hooks::render_particles_2.reset();
+                g::hooks::render_particles.reset();
+                g::hooks::render.reset();
+                g::hooks::create.reset();
+            } else {
+                dbg("Could not disable every RBR hook; retaining hook ownership for retry");
+            }
 
             dbg(e.what());
             MessageBoxA(nullptr, e.what(), "Hooking failed", MB_OK);
