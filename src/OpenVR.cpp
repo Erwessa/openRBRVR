@@ -102,6 +102,26 @@ void OpenVR::init(IDirect3DDevice9* dev, IDirect3DVR9** vrdev,
     const auto width = m_frameState.RecommendedWidth;
     const auto height = m_frameState.RecommendedHeight;
 
+    // Validate every configured multiview context before allocating any
+    // layered render targets. A failed capability check must not leave a
+    // partially initialized set of contexts that later fails on a stage switch.
+    for (const auto& gfx : g::cfg.gfx) {
+        if (!gfx.second.multiview_rendering)
+            continue;
+
+        const HRESULT multiviewResult = g::d3d_vr->EnableMultiView(true);
+        if (FAILED(multiviewResult))
+            throw std::runtime_error(std::format(
+                "OpenVR render context '{}' requires multiview, but the D3D9 runtime does not support it (HRESULT 0x{:08X})",
+                gfx.first, static_cast<uint32_t>(multiviewResult)));
+    }
+
+    const HRESULT disableMultiviewResult = g::d3d_vr->EnableMultiView(false);
+    if (FAILED(disableMultiviewResult))
+        throw std::runtime_error(std::format(
+            "OpenVR could not reset multiview state before creating render contexts (HRESULT 0x{:08X})",
+            static_cast<uint32_t>(disableMultiviewResult)));
+
     try {
         for (const auto& gfx : g::cfg.gfx) {
             const auto supersampling = gfx.second.supersampling;
