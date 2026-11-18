@@ -152,8 +152,6 @@ void OpenVR::init(IDirect3DDevice9* dev, IDirect3DVR9** vrdev,
 
 HRESULT OpenVR::shutdown_device_resources(bool requireSuccessfulIdle)
 {
-    discard_prepared_frames();
-
     if (!g::d3d_vr && requireSuccessfulIdle) {
         dbg("OpenVR device-idle wait unavailable: D3D9VR proxy is missing");
         return D3DERR_NOTAVAILABLE;
@@ -168,6 +166,10 @@ HRESULT OpenVR::shutdown_device_resources(bool requireSuccessfulIdle)
                 return idleResult;
         }
     }
+
+    // Keep the prepared-frame state intact when a Reset cannot confirm GPU
+    // idleness. Final teardown still discards it after the best-effort wait.
+    discard_prepared_frames();
 
     for (auto& contextEntry : render_contexts) {
         auto& ctx = contextEntry.second;
