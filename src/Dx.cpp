@@ -599,11 +599,12 @@ namespace dx {
 
         if (g::d3d_vr) {
             for (auto& it : g::patched_btb_shaders) {
-                if (!optimize_spirv_shader(it.first)) {
+                if (optimize_spirv_shader(it.first)) {
+                    g::optimized_btb_shaders.insert(it.first);
+                } else {
                     dbg("Shader optimization failed!");
                     g::failed_multiview_btb_shader_optimizations++;
                 }
-                g::optimized_btb_shaders.insert(it.first);
             }
         }
         g::patched_btb_shaders.clear();
