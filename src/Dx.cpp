@@ -1036,9 +1036,11 @@ namespace dx {
 
         auto* openvr = static_cast<OpenVR*>(g::vr);
 
-        // Release every plugin-owned default-pool resource before the Bridge
-        // Client forwards Reset to the x64 server.
-        openvr->shutdown_device_resources();
+        // Do not release any plugin-owned resource or forward Reset unless
+        // the Bridge Server confirms that all Vulkan work has completed.
+        const HRESULT shutdownResult = openvr->shutdown_device_resources(true);
+        if (FAILED(shutdownResult))
+            return shutdownResult;
 
         if (g::original_render_target) {
             g::original_render_target->Release();
