@@ -363,7 +363,7 @@ namespace rbr {
             deprecation_warning_shown = true;
         }
 
-        if (!g::writetext_hook.call && g::game_mode == GameMode::MainMenu) {
+        if (g::game && !g::writetext_hook.call && g::game_mode == GameMode::MainMenu) {
             auto vtbl = get_vtable<IRBRGameVtbl>(g::game);
             g::writetext_hook = Hook(vtbl->WriteText, WriteText);
         }
@@ -546,14 +546,14 @@ namespace rbr {
 
                 if (!seat_saved && seat_still_frames > 250) {
                     if (g::cfg.insert_or_update_seat_translation(*g::car_id_ptr, g::seat_translation)) {
-                        g::game->WriteGameMessage("openRBRVR seat position saved.", 2.0, 100.0, 100.0);
+                        if (g::game) g::game->WriteGameMessage("openRBRVR seat position saved.", 2.0, 100.0, 100.0);
                     } else {
-                        g::game->WriteGameMessage("Failed to save openRBRVR seat position.", 2.0, 100.0, 100.0);
+                        if (g::game) g::game->WriteGameMessage("Failed to save openRBRVR seat position.", 2.0, 100.0, 100.0);
                     }
                     seat_saved = true;
                 }
             } else if (g::seat_movement_request) {
-                g::game->WriteGameMessage("openRBRVR seat position adjustment is implemented for internal camera only.", 2.0, 100.0, 100.0);
+                if (g::game) g::game->WriteGameMessage("openRBRVR seat position adjustment is implemented for internal camera only.", 2.0, 100.0, 100.0);
             }
         }
 
