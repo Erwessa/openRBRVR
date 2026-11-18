@@ -814,6 +814,9 @@ namespace rbr {
     uint32_t __stdcall load_texture(void* p, const char* tex_name, uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e, uint32_t f, uint32_t g, uint32_t h, uint32_t i, uint32_t j, uint32_t k, IDirect3DTexture9** pp_texture)
     {
         auto ret = g::hooks::load_texture.call(p, tex_name, a, b, c, d, e, f, g, h, i, j, k, pp_texture);
+        if (!g::game)
+            return ret;
+
         auto tex = std::string(tex_name)
             | std::ranges::views::transform([](char c) { return std::tolower(c); })
             | std::ranges::to<std::string>();
@@ -826,34 +829,39 @@ namespace rbr {
 
     void __fastcall render_particles(void* This)
     {
-        if (should_render_particles()) {
+        if (!g::game || should_render_particles()) {
             g::hooks::render_particles.call(This);
         }
     }
 
     void __fastcall render_particles_2(void* This)
     {
-        if (should_render_particles()) {
+        if (!g::game || should_render_particles()) {
             g::hooks::render_particles_2.call(This);
         }
     }
 
     void __fastcall render_particles_3(void* This)
     {
-        if (should_render_particles()) {
+        if (!g::game || should_render_particles()) {
             g::hooks::render_particles_3.call(This);
         }
     }
 
     void __fastcall render_particles_4(void* This)
     {
-        if (should_render_particles()) {
+        if (!g::game || should_render_particles()) {
             g::hooks::render_particles_4.call(This);
         }
     }
 
     void __fastcall render_windscreen_effects(void* a)
     {
+        if (!g::game) {
+            g::hooks::render_windscreen_effects.call(a);
+            return;
+        }
+
         struct WetWindscreenScope {
             bool previous;
 
