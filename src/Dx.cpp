@@ -79,6 +79,7 @@ namespace dx {
     // to this translation unit because they only publish the raw camera snapshot.
     static Hook<decltype(IDirect3DDevice9Vtbl::DrawPrimitiveUP)> draw_primitive_up;
     static Hook<decltype(IDirect3DDevice9Vtbl::DrawIndexedPrimitiveUP)> draw_indexed_primitive_up;
+    static Hook<decltype(IDirect3DDevice9Vtbl::MultiplyTransform)> multiply_transform;
 
     static void publish_raw_game_camera_if_dirty()
     {
@@ -936,6 +937,28 @@ namespace dx {
         update_matrices(right);
     }
 
+    HRESULT __stdcall MultiplyTransform(IDirect3DDevice9* This, D3DTRANSFORMSTATETYPE State, const D3DMATRIX* pMatrix)
+    {
+        if (!g::game)
+            return multiply_transform.call(This, State, pMatrix);
+
+        const auto ret = multiply_transform.call(g::d3d_dev, State, pMatrix);
+        if (FAILED(ret) || !pMatrix || !g::vr_render_target || *g::vr_render_target != LeftEye)
+            return ret;
+
+        // DXVK applies currentTransform * incomingTransform. Mirror that operation
+        // on the unmodified game matrix, not on the VR-adjusted D3D9 matrix.
+        if (State == D3DTS_VIEW && raw_game_view_valid) {
+            raw_game_view = d3d_from_m4(m4_from_d3d(raw_game_view) * m4_from_d3d(*pMatrix));
+            raw_game_camera_dirty = true;
+        } else if (State == D3DTS_PROJECTION && raw_game_projection_valid) {
+            raw_game_projection = d3d_from_m4(m4_from_d3d(raw_game_projection) * m4_from_d3d(*pMatrix));
+            raw_game_camera_dirty = true;
+        }
+
+        return ret;
+    }
+
     HRESULT __stdcall SetTransform(IDirect3DDevice9* This, D3DTRANSFORMSTATETYPE State, const D3DMATRIX* pMatrix)
     {
         if (!g::game)
@@ -1426,6 +1449,7 @@ namespace dx {
                 g::hooks::reset.install(devvtbl->Reset, Reset);
             g::hooks::set_vertex_shader_constant_f.install(devvtbl->SetVertexShaderConstantF, SetVertexShaderConstantF);
             g::hooks::set_transform.install(devvtbl->SetTransform, SetTransform);
+            multiply_transform.install(devvtbl->MultiplyTransform, MultiplyTransform);
             g::hooks::present.install(devvtbl->Present, Present);
             g::hooks::create_vertex_shader.install(devvtbl->CreateVertexShader, CreateVertexShader);
             g::hooks::get_vertex_shader.install(devvtbl->GetVertexShader, GetVertexShader);
@@ -1458,6 +1482,7 @@ namespace dx {
                 g::hooks::create_vertex_shader,
                 g::hooks::present,
                 g::hooks::set_transform,
+                multiply_transform,
                 g::hooks::set_vertex_shader_constant_f);
 
             if (hooksDisabled) {
@@ -1476,6 +1501,7 @@ namespace dx {
                 g::hooks::create_vertex_shader.reset();
                 g::hooks::present.reset();
                 g::hooks::set_transform.reset();
+                multiply_transform.reset();
                 g::hooks::set_vertex_shader_constant_f.reset();
 
                 if (g::vr) {
