@@ -446,20 +446,53 @@ namespace rbr {
             }
 
             if (restart_session) {
-                dbg("Restarting OpenXR session");
-
+                const auto runtime = g::vr->get_runtime_type();
                 const auto w = static_cast<uint32_t>(g::vr->companion_window_width);
                 const auto h = static_cast<uint32_t>(g::vr->companion_window_height);
 
+                dbg(runtime == OPENVR
+                    ? "Restarting OpenVR session"
+                    : "Restarting OpenXR session");
+
+                // Both VR backends own their D3D9VR proxy and release it during
+                // shutdown. Recreate the proxy after destroying the old session.
                 delete g::vr;
-                g::vr = new OpenXR();
-                reinterpret_cast<OpenXR*>(g::vr)->init(g::d3d_dev, &g::d3d_vr, w, h);
+                g::vr = nullptr;
 
-                // Reload render context in case it was not the default
-                update_render_context();
+                HRESULT vrResult = CreateD3D9VR(g::d3d_dev, &g::d3d_vr);
+                if (FAILED(vrResult) || !g::d3d_vr) {
+                    dbg(std::format("Could not recreate D3D9VR proxy while restarting the VR session (HRESULT 0x{:08X})",
+                        static_cast<uint32_t>(vrResult)));
+                    g::session_recenter_frame_counter = 0;
+                    return;
+                }
 
-                // Run auto-recentering again if needed
-                g::session_recenter_frame_counter = 0;
+                try {
+                    if (runtime == OPENVR) {
+                        auto* openvr = new OpenVR();
+                        g::vr = openvr;
+                        openvr->init(g::d3d_dev, &g::d3d_vr, w, h);
+                    } else {
+                        auto* openxr = new OpenXR();
+                        g::vr = openxr;
+                        openxr->init(g::d3d_dev, &g::d3d_vr, w, h);
+                    }
+
+                    // Reload render context in case it was not the default
+                    update_render_context();
+
+                    // Run auto-recentering again if needed
+                    g::session_recenter_frame_counter = 0;
+                } catch (const std::exception& e) {
+                    dbg(std::format("VR session restart failed: {}", e.what()));
+                    delete g::vr;
+                    g::vr = nullptr;
+                    if (g::d3d_vr) {
+                        g::d3d_vr->Release();
+                        g::d3d_vr = nullptr;
+                    }
+                    g::session_recenter_frame_counter = 0;
+                }
             }
         }
 
