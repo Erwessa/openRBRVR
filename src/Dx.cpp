@@ -1272,10 +1272,9 @@ namespace dx {
             dbg(e.what());
             MessageBoxA(hFocusWindow, e.what(), "Hooking failed", MB_OK);
 
-            // OpenVR cannot run without the complete D3D hook set. Roll back
-            // every device hook and fail device creation instead of exposing
-            // a partially hooked device to the game.
-            if (!g::vr || g::vr->get_runtime_type() == OPENVR) {
+            // Both VR backends require the complete D3D9 hook set. Roll back
+            // every device hook and fail device creation rather than exposing
+            // a partially hooked device to either runtime.
                 g::hooks::end_state_block.reset();
                 g::hooks::reset.reset();
                 g::hooks::clear.reset();
@@ -1300,7 +1299,6 @@ namespace dx {
                 *ppReturnedDeviceInterface = nullptr;
                 dev->Release();
                 return E_FAIL;
-            }
         }
 
         g::d3d_dev = dev;
