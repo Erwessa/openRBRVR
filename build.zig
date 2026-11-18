@@ -47,6 +47,8 @@ pub fn build(b: *std.Build) void {
         "src/openRBRVR.cpp",
     }, .flags = &.{
         "-Wno-ignored-attributes",
+        "-Wno-deprecated-literal-operator",
+        "-Qunused-arguments",
         "--std=c++23",
     } });
 
