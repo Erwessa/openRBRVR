@@ -348,7 +348,7 @@ namespace rbr {
     {
         // Must be careful here, ECX must not change or we lose
         // the this pointer to the original WriteText method call
-        if (!g::allow_writetext) {
+        if (g::game && !g::allow_writetext) {
             return;
         }
 
