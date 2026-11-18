@@ -40,13 +40,20 @@ struct Hook {
             throw std::runtime_error("Could not disable hook");
         }
     }
-    void reset() noexcept
+    MH_STATUS reset() noexcept
     {
-        if (src)
-            MH_RemoveHook(reinterpret_cast<void*>(src));
+        if (!src) {
+            call = nullptr;
+            return MH_OK;
+        }
+
+        const auto status = MH_RemoveHook(reinterpret_cast<void*>(src));
+        if (status != MH_OK)
+            return status;
 
         call = nullptr;
         src = nullptr;
+        return MH_OK;
     }
     Hook(const Hook&) = delete;
     Hook(Hook&& rhs)
@@ -57,12 +64,14 @@ struct Hook {
         rhs.src = nullptr;
     }
     Hook& operator=(const Hook&) = delete;
-    Hook& operator=(Hook&& rhs) noexcept
+    Hook& operator=(Hook&& rhs)
     {
         if (this == &rhs)
             return *this;
 
-        reset();
+        if (reset() != MH_OK)
+            throw std::runtime_error("Could not remove existing hook");
+
         call = rhs.call;
         src = rhs.src;
         rhs.call = nullptr;
