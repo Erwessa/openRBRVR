@@ -100,6 +100,14 @@ openRBRVR::~openRBRVR()
         g::vr = nullptr;
     }
 
+    // CreateDevice also creates the Bridge proxy when VR runtime startup
+    // failed and g::vr is null. Runtime destructors normally release it,
+    // but keep plugin teardown responsible for any remaining proxy.
+    if (g::d3d_vr) {
+        g::d3d_vr->Release();
+        g::d3d_vr = nullptr;
+    }
+
     if (g::original_render_target) {
         g::original_render_target->Release();
         g::original_render_target = nullptr;
