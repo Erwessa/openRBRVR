@@ -201,7 +201,7 @@ namespace dx {
         // Nobody will want to edit BTB shaders :D
         g::base_game_shaders.push_back(shader);
 
-        if (multiview_supported()) {
+        if (multiview_supported() && g::d3d_dev && g::hooks::create_vertex_shader.src) {
             IDirect3DVertexShader9* modified_shader = nullptr;
             const auto ret = g::hooks::create_vertex_shader.call(g::d3d_dev, bytecode.data(), &modified_shader);
             if (FAILED(ret) || !modified_shader) {
@@ -217,10 +217,12 @@ namespace dx {
                 g::failed_multiview_external_shaders++;
             }
         } else {
-            // Keep the original/multiview vectors index-aligned even when
-            // multiview is unavailable during registration. It may become
-            // available later, when Set/GetVertexShader use the paired index.
+            // Keep the vectors index-aligned when multiview or the device
+            // shader hook is not ready. In particular, CreateDevice creates
+            // the D3D9VR proxy before installing the shader hooks.
             g::base_game_multiview_shaders.push_back(shader);
+            if (multiview_supported())
+                g::failed_multiview_external_shaders++;
         }
 
         return true;
