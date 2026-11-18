@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <atomic>
 #include <exception>
+#include <mutex>
 #include <array>
 #include <gtx/matrix_decompose.hpp>
 #include <unordered_set>
@@ -35,6 +36,7 @@ namespace g {
     static std::unordered_map<IDirect3DVertexShader9*, std::vector<uint32_t>> patched_btb_shaders;
     static std::unordered_set<IDirect3DVertexShader9*> optimized_btb_shaders;
     static std::unordered_map<uint32_t, std::array<float, 16>> deferred_shader_constants;
+    static std::mutex deferred_shader_constants_mutex;
     static std::atomic<int> failed_multiview_base_game_shaders { 0 };
     static std::atomic<int> failed_multiview_external_shaders { 0 };
     static std::atomic<int> failed_multiview_btb_shaders { 0 };
@@ -362,13 +364,21 @@ namespace dx {
         // we have been collecting the data to g::deferred_shader_constants
         // As we now have the shader present, apply the constants so we run
         // our shader patching and data relocation correctly.
-        if (SUCCEEDED(ret) && pShader && !g::deferred_shader_constants.empty()) {
-            for (const auto& it : g::deferred_shader_constants) {
+        if (SUCCEEDED(ret) && pShader) {
+            // Detach the pending batch while holding the map lock, then replay
+            // it without the lock because SetVertexShaderConstantF re-enters
+            // this hook and performs D3D9/Bridge work.
+            decltype(g::deferred_shader_constants) deferred_constants;
+            {
+                std::lock_guard lock(g::deferred_shader_constants_mutex);
+                deferred_constants.swap(g::deferred_shader_constants);
+            }
+
+            for (const auto& it : deferred_constants) {
                 // We can just call our patched SetVertexShaderConstantF function
                 // It will handle patching the (BTB) shader etc. correctly
                 SetVertexShaderConstantF(This, it.first, it.second.data(), 4);
             }
-            g::deferred_shader_constants.clear();
         }
 
         return ret;
@@ -665,7 +675,10 @@ namespace dx {
             // correctly patch them for multiview and supply the data accordingly.
             std::array<float, 16> m;
             std::copy_n(pConstantData, 16, m.begin());
-            g::deferred_shader_constants.insert_or_assign(StartRegister, m);
+            {
+                std::lock_guard lock(g::deferred_shader_constants_mutex);
+                g::deferred_shader_constants.insert_or_assign(StartRegister, m);
+            }
         } else if (shader && is_base_shader && Vector4fCount == 4) {
             shader->Release();
 
@@ -1073,7 +1086,10 @@ namespace dx {
         // partially patched or pending optimization batch across Reset.
         g::patched_btb_shaders.clear();
         g::optimized_btb_shaders.clear();
-        g::deferred_shader_constants.clear();
+        {
+            std::lock_guard lock(g::deferred_shader_constants_mutex);
+            g::deferred_shader_constants.clear();
+        }
 
         const HRESULT resetResult = g::hooks::reset.call(This, pPresentationParameters);
         if (FAILED(resetResult)) {
