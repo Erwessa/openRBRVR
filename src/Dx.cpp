@@ -171,6 +171,11 @@ namespace dx {
 
     bool add_vertex_shader(IDirect3DVertexShader9* shader)
     {
+        if (!shader) {
+            dbg("Cannot register a null vertex shader");
+            return false;
+        }
+
         UINT fn_size;
 
         if (shader->GetFunction(nullptr, &fn_size) != D3D_OK) {
