@@ -197,10 +197,20 @@ void OpenVR::set_render_context(const std::string& name)
     // CreateDevice call cannot reliably seed the fixed-function multiview bit.
     // Reapply the selected context's effective mode whenever it becomes active.
     if (g::d3d_vr) {
-        const HRESULT result = g::d3d_vr->EnableMultiView(dx::multiview_rendering_enabled());
+        HRESULT result = g::d3d_vr->EnableMultiView(dx::multiview_rendering_enabled());
+        if (FAILED(result) && dx::multiview_rendering_enabled()) {
+            // Multiview is optional. The per-eye textures remain valid when
+            // rendering falls back to two ordinary eye passes.
+            dbg(std::format(
+                "Multiview unavailable for render context '{}'; falling back to stereo (HRESULT 0x{:08X})",
+                name, static_cast<uint32_t>(result)));
+            current_render_context->multiview_rendering = false;
+            g::cfg.multiview = false;
+            result = g::d3d_vr->EnableMultiView(false);
+        }
         if (FAILED(result))
             throw std::runtime_error(std::format(
-                "Could not apply OpenVR multiview mode for render context '{}': HRESULT 0x{:08X}",
+                "Could not apply stereo mode for render context '{}': HRESULT 0x{:08X}",
                 name, static_cast<uint32_t>(result)));
     }
 
