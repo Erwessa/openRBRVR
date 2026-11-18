@@ -192,6 +192,18 @@ void OpenVR::shutdown_vr()
 void OpenVR::set_render_context(const std::string& name)
 {
     VRInterface::set_render_context(name);
+
+    // The Bridge device is created before its D3D9VR proxy, so the initial
+    // CreateDevice call cannot reliably seed the fixed-function multiview bit.
+    // Reapply the selected context's effective mode whenever it becomes active.
+    if (g::d3d_vr) {
+        const HRESULT result = g::d3d_vr->EnableMultiView(dx::multiview_rendering_enabled());
+        if (FAILED(result))
+            throw std::runtime_error(std::format(
+                "Could not apply OpenVR multiview mode for render context '{}': HRESULT 0x{:08X}",
+                name, static_cast<uint32_t>(result)));
+    }
+
     m_framesPrepared = false;
 }
 
