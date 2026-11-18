@@ -8,6 +8,7 @@
 #include "Version.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <exception>
 #include <array>
 #include <gtx/matrix_decompose.hpp>
@@ -34,10 +35,10 @@ namespace g {
     static std::unordered_map<IDirect3DVertexShader9*, std::vector<uint32_t>> patched_btb_shaders;
     static std::unordered_set<IDirect3DVertexShader9*> optimized_btb_shaders;
     static std::unordered_map<uint32_t, std::array<float, 16>> deferred_shader_constants;
-    static int failed_multiview_base_game_shaders;
-    static int failed_multiview_external_shaders;
-    static int failed_multiview_btb_shaders;
-    static int failed_multiview_btb_shader_optimizations;
+    static std::atomic<int> failed_multiview_base_game_shaders { 0 };
+    static std::atomic<int> failed_multiview_external_shaders { 0 };
+    static std::atomic<int> failed_multiview_btb_shaders { 0 };
+    static std::atomic<int> failed_multiview_btb_shader_optimizations { 0 };
 }
 
 namespace dx {
@@ -454,14 +455,18 @@ namespace dx {
             }
             if (multiview_rendering_enabled()) {
                 g::game->WriteText(0, 18 * ++i, std::format("Multiview rendering").c_str());
-                if (g::failed_multiview_base_game_shaders > 0)
-                    g::game->WriteText(0, 18 * ++i, std::format("  Failed base game shaders: {}", g::failed_multiview_base_game_shaders).c_str());
-                if (g::failed_multiview_external_shaders > 0)
-                    g::game->WriteText(0, 18 * ++i, std::format("  Failed external shaders: {}", g::failed_multiview_external_shaders).c_str());
-                if (g::failed_multiview_btb_shaders > 0)
-                    g::game->WriteText(0, 18 * ++i, std::format("  Failed BTB shaders: {}", g::failed_multiview_btb_shaders).c_str());
-                if (g::failed_multiview_btb_shader_optimizations > 0)
-                    g::game->WriteText(0, 18 * ++i, std::format("  Failed BTB shader optimizations: {}", g::failed_multiview_btb_shader_optimizations).c_str());
+                const int failedBaseGameShaders = g::failed_multiview_base_game_shaders.load(std::memory_order_relaxed);
+                const int failedExternalShaders = g::failed_multiview_external_shaders.load(std::memory_order_relaxed);
+                const int failedBtbShaders = g::failed_multiview_btb_shaders.load(std::memory_order_relaxed);
+                const int failedBtbShaderOptimizations = g::failed_multiview_btb_shader_optimizations.load(std::memory_order_relaxed);
+                if (failedBaseGameShaders > 0)
+                    g::game->WriteText(0, 18 * ++i, std::format("  Failed base game shaders: {}", failedBaseGameShaders).c_str());
+                if (failedExternalShaders > 0)
+                    g::game->WriteText(0, 18 * ++i, std::format("  Failed external shaders: {}", failedExternalShaders).c_str());
+                if (failedBtbShaders > 0)
+                    g::game->WriteText(0, 18 * ++i, std::format("  Failed BTB shaders: {}", failedBtbShaders).c_str());
+                if (failedBtbShaderOptimizations > 0)
+                    g::game->WriteText(0, 18 * ++i, std::format("  Failed BTB shader optimizations: {}", failedBtbShaderOptimizations).c_str());
             }
             g::game->WriteText(0, 18 * ++i, std::format("Anisotropic filtering: {}x", g::cfg.anisotropy).c_str());
             g::game->WriteText(0, 18 * ++i, std::format("Current stage ID: {}", rbr::get_current_stage_id()).c_str());
