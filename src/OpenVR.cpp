@@ -122,6 +122,8 @@ void OpenVR::init(IDirect3DDevice9* dev, IDirect3DVR9** vrdev,
             "OpenVR could not reset multiview state before creating render contexts (HRESULT 0x{:08X})",
             static_cast<uint32_t>(disableMultiviewResult)));
 
+    const auto defaultMsaa = g::cfg.gfx.at("default").msaa.value_or(D3DMULTISAMPLE_NONE);
+
     try {
         for (const auto& gfx : g::cfg.gfx) {
             const auto supersampling = gfx.second.supersampling;
@@ -130,7 +132,7 @@ void OpenVR::init(IDirect3DDevice9* dev, IDirect3DVR9** vrdev,
             RenderContext ctx = {
                 .width = { wss, wss },
                 .height = { hss, hss },
-                .msaa = gfx.second.msaa.value_or(g::cfg.gfx["default"].msaa.value()),
+                .msaa = gfx.second.msaa.value_or(defaultMsaa),
                 .quad_view_rendering = false,
                 .multiview_rendering = gfx.second.multiview_rendering,
             };
