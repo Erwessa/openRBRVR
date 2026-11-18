@@ -100,58 +100,55 @@ namespace dx {
 
     static bool optimize_spirv_shader(IDirect3DVertexShader9* s)
     {
-        uint32_t spirv_size;
-        g::d3d_vr->GetSPIRVShaderCode(s, nullptr, &spirv_size);
+        uint32_t spirv_size = 0;
+        if (FAILED(g::d3d_vr->GetSPIRVShaderCode(s, nullptr, &spirv_size)) || spirv_size == 0)
+            return false;
 
-        std::vector<uint32_t> spirv;
-        spirv.resize(spirv_size);
-        g::d3d_vr->GetSPIRVShaderCode(s, spirv.data(), &spirv_size);
+        std::vector<uint32_t> spirv(spirv_size);
+        if (FAILED(g::d3d_vr->GetSPIRVShaderCode(s, spirv.data(), &spirv_size)))
+            return false;
 
-        uint32_t patched_spirv_size;
-        if (g::spirv_optimize_multiview(spirv.data(), spirv.size(), nullptr, &patched_spirv_size) != 0) {
+        uint32_t patched_spirv_size = 0;
+        if (g::spirv_optimize_multiview(spirv.data(), spirv.size(), nullptr, &patched_spirv_size) != 0
+            || patched_spirv_size == 0) {
             return false;
         }
 
-        std::vector<uint32_t> patched_spirv;
-        patched_spirv.resize(patched_spirv_size);
-        if (g::spirv_optimize_multiview(spirv.data(), spirv.size(), patched_spirv.data(), &patched_spirv_size) != 0) {
+        std::vector<uint32_t> patched_spirv(patched_spirv_size);
+        if (g::spirv_optimize_multiview(spirv.data(), spirv.size(), patched_spirv.data(), &patched_spirv_size) != 0)
             return false;
-        }
 
-        g::d3d_vr->PatchSPIRVToVertexShader(s, patched_spirv.data(), patched_spirv_size);
-
-        return true;
+        return SUCCEEDED(g::d3d_vr->PatchSPIRVToVertexShader(s, patched_spirv.data(), patched_spirv_size));
     }
 
     static bool patch_spirv_shader(IDirect3DVertexShader9* s, uint32_t f_idx, uint32_t data_start_register, bool optimize)
     {
-        uint32_t spirv_size;
-        g::d3d_vr->GetSPIRVShaderCode(s, nullptr, &spirv_size);
+        uint32_t spirv_size = 0;
+        if (FAILED(g::d3d_vr->GetSPIRVShaderCode(s, nullptr, &spirv_size)) || spirv_size == 0)
+            return false;
 
-        std::vector<uint32_t> spirv;
-        spirv.resize(spirv_size);
-        g::d3d_vr->GetSPIRVShaderCode(s, spirv.data(), &spirv_size);
+        std::vector<uint32_t> spirv(spirv_size);
+        if (FAILED(g::d3d_vr->GetSPIRVShaderCode(s, spirv.data(), &spirv_size)))
+            return false;
 
-        uint32_t patched_spirv_size;
-        if (g::spirv_change_multiview_access(spirv.data(), spirv.size(), nullptr, &patched_spirv_size, f_idx, data_start_register, optimize) != 0) {
+        uint32_t patched_spirv_size = 0;
+        if (g::spirv_change_multiview_access(spirv.data(), spirv.size(), nullptr, &patched_spirv_size, f_idx, data_start_register, optimize) != 0
+            || patched_spirv_size == 0) {
             return false;
         }
 
-        std::vector<uint32_t> patched_spirv;
-        patched_spirv.resize(patched_spirv_size);
-        if (g::spirv_change_multiview_access(spirv.data(), spirv.size(), patched_spirv.data(), &patched_spirv_size, f_idx, data_start_register, optimize) != 0) {
+        std::vector<uint32_t> patched_spirv(patched_spirv_size);
+        if (g::spirv_change_multiview_access(spirv.data(), spirv.size(), patched_spirv.data(), &patched_spirv_size, f_idx, data_start_register, optimize) != 0)
             return false;
-        }
 
-        g::d3d_vr->PatchSPIRVToVertexShader(s, patched_spirv.data(), patched_spirv_size);
-
-        return true;
+        return SUCCEEDED(g::d3d_vr->PatchSPIRVToVertexShader(s, patched_spirv.data(), patched_spirv_size));
     }
 
     static bool patch_spirv_shader_registers(IDirect3DVertexShader9* s)
     {
         // Make room for the extra data
-        g::d3d_vr->SetShaderConstantCount(s, g::base_shader_data_end_register * 2);
+        if (FAILED(g::d3d_vr->SetShaderConstantCount(s, g::base_shader_data_end_register * 2)))
+            return false;
 
         // MVP matrix
         if (!patch_spirv_shader(s, 0, g::base_shader_data_end_register, false)) {
@@ -766,8 +763,10 @@ namespace dx {
 
             if (!g::optimized_btb_shaders.contains(shader)) {
                 if (regs.empty()) {
-                    g::d3d_vr->SetShaderConstantCount(shader, g::base_shader_data_end_register * 2);
-                    if (!patch_spirv_shader(shader, StartRegister, g::base_shader_data_end_register, false)) {
+                    if (FAILED(g::d3d_vr->SetShaderConstantCount(shader, g::base_shader_data_end_register * 2))) {
+                        dbg("Failed to extend BTB shader constant registers");
+                        g::failed_multiview_btb_shaders++;
+                    } else if (!patch_spirv_shader(shader, StartRegister, g::base_shader_data_end_register, false)) {
                         dbg("Shader patch failed!");
                         g::failed_multiview_btb_shaders++;
                     }
