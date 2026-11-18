@@ -1019,12 +1019,24 @@ namespace dx {
         // EndStateBlock can fail without returning a state block. Keep the
         // hook installed so a later successful call can still be intercepted.
         if (SUCCEEDED(ret) && ppSB && *ppSB) {
-            auto vtbl = get_vtable<IDirect3DStateBlock9Vtbl>(*ppSB);
-            g::hooks::apply_state_block = Hook(vtbl->Apply, ApplyStateBlock);
+            // State blocks normally share one vtable. Keep the existing hook
+            // instead of trying to register the same MinHook target again.
+            if (!g::hooks::apply_state_block.src) {
+                auto vtbl = get_vtable<IDirect3DStateBlock9Vtbl>(*ppSB);
+                try {
+                    g::hooks::apply_state_block = Hook(vtbl->Apply, ApplyStateBlock);
+                } catch (const std::runtime_error& e) {
+                    dbg(e.what());
+                    return ret;
+                }
+            }
 
-            // Remove the MinHook detour without ending the lifetime of the
-            // global Hook object.
-            g::hooks::end_state_block.reset();
+            // A failed removal leaves EndStateBlock detoured. Keep its
+            // trampoline and retry removal on the next successful call.
+            const auto status = g::hooks::end_state_block.reset();
+            if (status != MH_OK) {
+                dbg(std::format("Could not remove EndStateBlock hook: {}", MH_StatusToString(status)));
+            }
         }
 
         return ret;
