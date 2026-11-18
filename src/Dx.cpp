@@ -125,12 +125,8 @@ namespace dx {
             // invalidated below, so without this the RTX path would fall back
             // to the already eye-transformed D3D9 matrices.
             raw_game_camera_dirty = raw_game_view_valid && raw_game_projection_valid;
-            if (g::d3d_vr) {
-                D3D9_GAME_CAMERA camera{};
-                camera.Version = D3D9_GAME_CAMERA_VERSION;
-                // Flags == 0 invalidates the previous eye's cached camera.
-                g::d3d_vr->SetGameCamera(&camera);
-            }
+            // DXVK clears its per-device camera snapshot in D3D9Rtx::EndFrame,
+            // so no second synchronous Bridge round-trip is needed here.
         }
         if (g::vr->prepare_vr_rendering(g::d3d_dev, eye, clear)) {
             g::hooks::render.call(p);
