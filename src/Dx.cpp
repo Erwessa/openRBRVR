@@ -22,7 +22,7 @@ namespace g {
     static std::chrono::steady_clock::time_point second_start;
     static int fps;
     static int current_frames;
-    static bool applying_state_block;
+    static thread_local bool applying_state_block;
     static std::vector<IDirect3DVertexShader9*> base_game_shaders;
     static std::vector<IDirect3DVertexShader9*> base_game_multiview_shaders;
     static std::vector<IDirect3DVertexShader9*> external_shaders;
@@ -979,10 +979,20 @@ namespace dx {
 
     HRESULT __stdcall ApplyStateBlock(IDirect3DStateBlock9* This)
     {
-        g::applying_state_block = true;
-        const auto ret = g::hooks::apply_state_block.call(This);
-        g::applying_state_block = false;
-        return ret;
+        struct ApplyingStateBlockScope {
+            bool previous;
+
+            ApplyingStateBlockScope()
+                : previous(g::applying_state_block) {
+                g::applying_state_block = true;
+            }
+
+            ~ApplyingStateBlockScope() {
+                g::applying_state_block = previous;
+            }
+        } scope;
+
+        return g::hooks::apply_state_block.call(This);
     }
 
     HRESULT __stdcall SetRenderState(IDirect3DDevice9* This, D3DRENDERSTATETYPE State, DWORD Value)
