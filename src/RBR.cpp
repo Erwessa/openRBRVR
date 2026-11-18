@@ -589,6 +589,10 @@ namespace rbr {
         }
 
         if (!do_rendering) [[unlikely]] {
+            // Do not submit the previous eye images when RBR skipped this frame.
+            // Keep the normal game Present path, but skip OpenVR composition.
+            if (g::vr && g::vr->get_runtime_type() == OPENVR)
+                g::vr_error = true;
             return;
         }
 
