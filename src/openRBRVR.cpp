@@ -68,42 +68,42 @@ openRBRVR::openRBRVR(IRBRGame* g)
     // allowing recovery after a partial rollback.
     try {
         g::hooks::create.install(d3dcreate, dx::Direct3DCreate9);
-            g::hooks::render.install(*reinterpret_cast<decltype(rbr::render)*>(rbr::get_render_function_addr()), rbr::render);
+        g::hooks::render.install(*reinterpret_cast<decltype(rbr::render)*>(rbr::get_render_function_addr()), rbr::render);
 
-            const auto addrs = rbr::get_render_particles_function_addrs();
-            g::hooks::render_particles.install(*reinterpret_cast<decltype(rbr::render_particles)*>(addrs[0]), rbr::render_particles);
-            g::hooks::render_particles_2.install(*reinterpret_cast<decltype(rbr::render_particles_2)*>(addrs[1]), rbr::render_particles_2);
-            g::hooks::render_particles_3.install(*reinterpret_cast<decltype(rbr::render_particles_3)*>(addrs[2]), rbr::render_particles_3);
-            g::hooks::render_particles_4.install(*reinterpret_cast<decltype(rbr::render_particles_4)*>(addrs[3]), rbr::render_particles_4);
+        const auto addrs = rbr::get_render_particles_function_addrs();
+        g::hooks::render_particles.install(*reinterpret_cast<decltype(rbr::render_particles)*>(addrs[0]), rbr::render_particles);
+        g::hooks::render_particles_2.install(*reinterpret_cast<decltype(rbr::render_particles_2)*>(addrs[1]), rbr::render_particles_2);
+        g::hooks::render_particles_3.install(*reinterpret_cast<decltype(rbr::render_particles_3)*>(addrs[2]), rbr::render_particles_3);
+        g::hooks::render_particles_4.install(*reinterpret_cast<decltype(rbr::render_particles_4)*>(addrs[3]), rbr::render_particles_4);
 
-            g::hooks::set_camera_target.install(*reinterpret_cast<decltype(rbr::set_camera_target)*>(0x4663f0), rbr::set_camera_target);
-            g::hooks::render_windscreen_effects.install(*reinterpret_cast<decltype(rbr::render_windscreen_effects)*>(rbr::get_address(0x452020)), rbr::render_windscreen_effects);
-        } catch (const std::runtime_error& e) {
-            // Disable every hook before attempting rollback. If any detour
-            // cannot be disabled, retain the complete Hook ownership state so
-            // its trampoline and target are not lost while it may still run.
-            const bool hooksDisabled = disable_hooks(
-                g::hooks::render_windscreen_effects,
-                g::hooks::set_camera_target,
-                g::hooks::render_particles_4,
-                g::hooks::render_particles_3,
-                g::hooks::render_particles_2,
-                g::hooks::render_particles,
-                g::hooks::render,
-                g::hooks::create);
+        g::hooks::set_camera_target.install(*reinterpret_cast<decltype(rbr::set_camera_target)*>(0x4663f0), rbr::set_camera_target);
+        g::hooks::render_windscreen_effects.install(*reinterpret_cast<decltype(rbr::render_windscreen_effects)*>(rbr::get_address(0x452020)), rbr::render_windscreen_effects);
+    } catch (const std::runtime_error& e) {
+        // Disable every hook before attempting rollback. If any detour
+        // cannot be disabled, retain the complete Hook ownership state so
+        // its trampoline and target are not lost while it may still run.
+        const bool hooksDisabled = disable_hooks(
+            g::hooks::render_windscreen_effects,
+            g::hooks::set_camera_target,
+            g::hooks::render_particles_4,
+            g::hooks::render_particles_3,
+            g::hooks::render_particles_2,
+            g::hooks::render_particles,
+            g::hooks::render,
+            g::hooks::create);
 
-            if (hooksDisabled) {
-                g::hooks::render_windscreen_effects.reset();
-                g::hooks::set_camera_target.reset();
-                g::hooks::render_particles_4.reset();
-                g::hooks::render_particles_3.reset();
-                g::hooks::render_particles_2.reset();
-                g::hooks::render_particles.reset();
-                g::hooks::render.reset();
-                g::hooks::create.reset();
-            } else {
-                dbg("Could not disable every RBR hook; retaining hook ownership for retry");
-            }
+        if (hooksDisabled) {
+            g::hooks::render_windscreen_effects.reset();
+            g::hooks::set_camera_target.reset();
+            g::hooks::render_particles_4.reset();
+            g::hooks::render_particles_3.reset();
+            g::hooks::render_particles_2.reset();
+            g::hooks::render_particles.reset();
+            g::hooks::render.reset();
+            g::hooks::create.reset();
+        } else {
+            dbg("Could not disable every RBR hook; retaining hook ownership for retry");
+        }
 
         dbg(e.what());
         MessageBoxA(nullptr, e.what(), "Hooking failed", MB_OK);
