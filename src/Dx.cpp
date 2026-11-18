@@ -1416,4 +1416,5 @@ namespace dx {
             }
         }
         return d3d;
-    }}
+    }
+}
