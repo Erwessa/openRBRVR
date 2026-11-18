@@ -24,7 +24,7 @@ namespace g {
     static bool is_driving;
     static bool is_rendering_3d;
     static bool is_rendering_car;
-    static bool is_rendering_wet_windscreen;
+    static thread_local bool is_rendering_wet_windscreen;
     static M3* car_rotation_ptr;
     static int session_recenter_frame_counter;
     static int stage_recenter_frame_counter = INT32_MAX;
@@ -835,9 +835,20 @@ namespace rbr {
 
     void __fastcall render_windscreen_effects(void* a)
     {
-        g::is_rendering_wet_windscreen = true;
+        struct WetWindscreenScope {
+            bool previous;
+
+            WetWindscreenScope()
+                : previous(g::is_rendering_wet_windscreen) {
+                g::is_rendering_wet_windscreen = true;
+            }
+
+            ~WetWindscreenScope() {
+                g::is_rendering_wet_windscreen = previous;
+            }
+        } scope;
+
         g::hooks::render_windscreen_effects.call(a);
-        g::is_rendering_wet_windscreen = false;
     }
 }
 
