@@ -643,23 +643,27 @@ namespace dx {
         return ret;
     }
 
-    static bool set_btb_vertex_shader_constant(IDirect3DDevice9* This, UINT StartRegister, uint32_t start_index, const D3DMATRIX* matrices, const float* pConstantData, UINT Vector4fCount)
+    static bool set_btb_vertex_shader_constant(IDirect3DDevice9* This, UINT StartRegister, uint32_t start_index, const D3DMATRIX* matrices, const float* pConstantData, UINT Vector4fCount, HRESULT& result)
     {
         const auto left = g::vr_render_target.value_or(LeftEye);
         const auto right = render_target_counterpart(left);
         if (memcmp(pConstantData, &matrices[left], sizeof(D3DMATRIX)) == 0) {
-            g::hooks::set_vertex_shader_constant_f.call(g::d3d_dev, StartRegister + start_index, reinterpret_cast<const float*>(matrices[left].m), Vector4fCount);
-            g::hooks::set_vertex_shader_constant_f.call(g::d3d_dev, StartRegister + start_index + 4, reinterpret_cast<const float*>(matrices[right].m), Vector4fCount);
+            result = g::hooks::set_vertex_shader_constant_f.call(g::d3d_dev, StartRegister + start_index, reinterpret_cast<const float*>(matrices[left].m), Vector4fCount);
+            const HRESULT rightResult = g::hooks::set_vertex_shader_constant_f.call(g::d3d_dev, StartRegister + start_index + 4, reinterpret_cast<const float*>(matrices[right].m), Vector4fCount);
+            if (SUCCEEDED(result) && FAILED(rightResult))
+                result = rightResult;
+
             if (Vector4fCount > 4) {
                 // There's this one weird shader that has the camera position as fifth Vector4f element after the matrix.
                 // Copy the original data in the original location as the fifth element can be same for each view as it's moving the skybox along the camera.
-                g::hooks::set_vertex_shader_constant_f.call(g::d3d_dev, StartRegister, pConstantData, Vector4fCount);
+                const HRESULT originalResult = g::hooks::set_vertex_shader_constant_f.call(g::d3d_dev, StartRegister, pConstantData, Vector4fCount);
+                if (SUCCEEDED(result) && FAILED(originalResult))
+                    result = originalResult;
             }
             return true;
         }
         return false;
     }
-
     HRESULT __stdcall SetVertexShaderConstantF(IDirect3DDevice9* This, UINT StartRegister, const float* pConstantData, UINT Vector4fCount)
     {
         IDirect3DVertexShader9* shader;
@@ -792,21 +796,19 @@ namespace dx {
             // These are the different ones passed to shaders, gathered from the BTB stage list of RSF.
             // Some custom stages might have other shaders that pass the data in a different format.
             // Those won't work without handling them here, but such is life.
-            if (set_btb_vertex_shader_constant(This, StartRegister, g::base_shader_data_end_register, fixedfunction::current_projection_matrix, pConstantData, Vector4fCount))
-                return D3D_OK;
-            if (set_btb_vertex_shader_constant(This, StartRegister, g::base_shader_data_end_register, fixedfunction::current_view_matrix, pConstantData, Vector4fCount))
-                return D3D_OK;
-            if (set_btb_vertex_shader_constant(This, StartRegister, g::base_shader_data_end_register, fixedfunction::current_projview_matrix, pConstantData, Vector4fCount))
-                return D3D_OK;
-            if (set_btb_vertex_shader_constant(This, StartRegister, g::base_shader_data_end_register, fixedfunction::current_viewproj_matrix, pConstantData, Vector4fCount))
-                return D3D_OK;
-            if (set_btb_vertex_shader_constant(This, StartRegister, g::base_shader_data_end_register, fixedfunction::current_worldview_matrix, pConstantData, Vector4fCount))
-                return D3D_OK;
-            if (set_btb_vertex_shader_constant(This, StartRegister, g::base_shader_data_end_register, fixedfunction::current_worldviewproj_matrix, pConstantData, Vector4fCount))
-                return D3D_OK;
+            HRESULT matrixResult = D3D_OK;
+            if (set_btb_vertex_shader_constant(This, StartRegister, g::base_shader_data_end_register, fixedfunction::current_projection_matrix, pConstantData, Vector4fCount, matrixResult)
+                || set_btb_vertex_shader_constant(This, StartRegister, g::base_shader_data_end_register, fixedfunction::current_view_matrix, pConstantData, Vector4fCount, matrixResult)
+                || set_btb_vertex_shader_constant(This, StartRegister, g::base_shader_data_end_register, fixedfunction::current_projview_matrix, pConstantData, Vector4fCount, matrixResult)
+                || set_btb_vertex_shader_constant(This, StartRegister, g::base_shader_data_end_register, fixedfunction::current_viewproj_matrix, pConstantData, Vector4fCount, matrixResult)
+                || set_btb_vertex_shader_constant(This, StartRegister, g::base_shader_data_end_register, fixedfunction::current_worldview_matrix, pConstantData, Vector4fCount, matrixResult)
+                || set_btb_vertex_shader_constant(This, StartRegister, g::base_shader_data_end_register, fixedfunction::current_worldviewproj_matrix, pConstantData, Vector4fCount, matrixResult)) {
+                return matrixResult;
+            }
 
-            g::hooks::set_vertex_shader_constant_f.call(g::d3d_dev, reg, pConstantData, Vector4fCount);
-            g::hooks::set_vertex_shader_constant_f.call(g::d3d_dev, reg + 4, pConstantData, Vector4fCount);
+            const HRESULT leftResult = g::hooks::set_vertex_shader_constant_f.call(g::d3d_dev, reg, pConstantData, Vector4fCount);
+            const HRESULT rightResult = g::hooks::set_vertex_shader_constant_f.call(g::d3d_dev, reg + 4, pConstantData, Vector4fCount);
+            return FAILED(leftResult) ? leftResult : rightResult;
         }
 
         return g::hooks::set_vertex_shader_constant_f.call(g::d3d_dev, StartRegister, pConstantData, Vector4fCount);
