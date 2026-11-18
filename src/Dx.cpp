@@ -687,8 +687,10 @@ namespace dx {
         const auto left = g::vr_render_target.value_or(LeftEye);
         const auto right = render_target_counterpart(left);
         if (memcmp(pConstantData, &matrices[left], sizeof(D3DMATRIX)) == 0) {
-            result = g::hooks::set_vertex_shader_constant_f.call(g::d3d_dev, StartRegister + start_index, reinterpret_cast<const float*>(matrices[left].m), Vector4fCount);
-            const HRESULT rightResult = g::hooks::set_vertex_shader_constant_f.call(g::d3d_dev, StartRegister + start_index + 4, reinterpret_cast<const float*>(matrices[right].m), Vector4fCount);
+            // A D3DMATRIX contains exactly four float4 rows. The caller may pass
+            // five vectors because the fifth value is handled separately below.
+            result = g::hooks::set_vertex_shader_constant_f.call(g::d3d_dev, StartRegister + start_index, reinterpret_cast<const float*>(matrices[left].m), 4);
+            const HRESULT rightResult = g::hooks::set_vertex_shader_constant_f.call(g::d3d_dev, StartRegister + start_index + 4, reinterpret_cast<const float*>(matrices[right].m), 4);
             if (SUCCEEDED(result) && FAILED(rightResult))
                 result = rightResult;
 
