@@ -803,8 +803,9 @@ namespace dx {
                 }
             } else if (multiview_rendering_enabled() && (StartRegister == 0 || StartRegister == 20)) {
                 // Place the data in the multiview locations also when rendering the main menu (g::vr_render_target is not set)
-                g::hooks::set_vertex_shader_constant_f.call(g::d3d_dev, reg, pConstantData, Vector4fCount);
-                return g::hooks::set_vertex_shader_constant_f.call(g::d3d_dev, reg + 4, pConstantData, Vector4fCount);
+                const HRESULT leftResult = g::hooks::set_vertex_shader_constant_f.call(g::d3d_dev, reg, pConstantData, Vector4fCount);
+                const HRESULT rightResult = g::hooks::set_vertex_shader_constant_f.call(g::d3d_dev, reg + 4, pConstantData, Vector4fCount);
+                return FAILED(leftResult) ? leftResult : rightResult;
             }
         } else if (multiview_rendering_enabled() && shader && !is_base_shader && (Vector4fCount == 4 || Vector4fCount == 5)) {
             // Multiview BTB shader data passing
