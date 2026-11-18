@@ -120,6 +120,12 @@ openRBRVR::~openRBRVR()
         g::game = nullptr;
     }
 
+    // Do not let a later Present/transform callback observe a stale per-frame
+    // VR target after the runtime has been destroyed.
+    g::vr_render_target.reset();
+    g::current_2d_render_target.reset();
+    g::vr_error = false;
+
     if (g::vr) {
         delete g::vr;
         g::vr = nullptr;
