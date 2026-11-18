@@ -1351,12 +1351,14 @@ namespace dx {
     {
         // The plugin keeps one global VR runtime and one global D3D9 device
         // hook set. Do not replace an existing runtime on repeated factory calls.
+        bool createdRuntime = false;
         if (!g::vr) {
             if (g::cfg.runtime == OPENXR) {
                 // OpenXR must be initialized before calling Direct3DCreate9
-                // because it will query extensions when initializing DXVK
+                // because it will query extensions when initializing DXVK.
                 try {
                     g::vr = new OpenXR();
+                    createdRuntime = true;
                 } catch (const std::exception& e) {
                     MessageBoxA(nullptr, e.what(), "OpenXR init failed", MB_OK);
                 }
@@ -1366,6 +1368,7 @@ namespace dx {
                 // independent Scene session, compositor and Vulkan extension discovery.
                 try {
                     g::vr = new OpenVR();
+                    createdRuntime = true;
                 } catch (const std::exception& e) {
                     MessageBoxA(nullptr, e.what(), "OpenVR init failed", MB_OK);
                 }
@@ -1375,7 +1378,7 @@ namespace dx {
         auto d3d = g::hooks::create.call(SDKVersion);
         if (!d3d) {
             dbg("Could not initialize Vulkan");
-            if (g::vr && g::vr->get_runtime_type() == OPENVR) {
+            if (createdRuntime && g::vr) {
                 delete g::vr;
                 g::vr = nullptr;
             }
@@ -1390,6 +1393,10 @@ namespace dx {
             if (g::hooks::create_device.src != d3d_vtbl->CreateDevice) {
                 dbg("A different D3D9 CreateDevice implementation is already hooked");
                 d3d->Release();
+                if (createdRuntime && g::vr) {
+                    delete g::vr;
+                    g::vr = nullptr;
+                }
                 return nullptr;
             }
         } else {
@@ -1398,8 +1405,15 @@ namespace dx {
             } catch (const std::runtime_error& e) {
                 dbg(e.what());
                 MessageBoxA(nullptr, e.what(), "Hooking failed", MB_OK);
+                // Returning an unhooked factory would let the game create a
+                // device that never enters the plugin's VR/D3D initialization.
+                d3d->Release();
+                if (createdRuntime && g::vr) {
+                    delete g::vr;
+                    g::vr = nullptr;
+                }
+                return nullptr;
             }
         }
         return d3d;
-    }
-}
+    }}
