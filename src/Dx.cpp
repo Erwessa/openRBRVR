@@ -1288,6 +1288,7 @@ namespace dx {
             return D3DERR_INVALIDCALL;
         }
 
+        dbg("D3D checkpoint: CreateDevice detour entered");
         IDirect3DDevice9* dev = nullptr;
 
         pPresentationParameters->PresentationInterval = D3DPRESENT_INTERVAL_IMMEDIATE;
@@ -1297,7 +1298,9 @@ namespace dx {
             BehaviorFlags |= 0x10000;
         }
 
+        dbg("D3D checkpoint: before original CreateDevice");
         auto ret = g::hooks::create_device.call(This, Adapter, DeviceType, hFocusWindow, BehaviorFlags, pPresentationParameters, &dev);
+        dbg(std::format("D3D checkpoint: original CreateDevice returned HRESULT 0x{:08X}, device {}", static_cast<uint32_t>(ret), dev ? "non-null" : "null"));
 
         if (multiview_rendering_enabled()) {
             BehaviorFlags &= ~0x10000;
@@ -1315,8 +1318,10 @@ namespace dx {
             return ret;
         }
 
+        dbg("D3D checkpoint: before GetDeviceCaps");
         D3DCAPS9 caps;
         dev->GetDeviceCaps(&caps);
+        dbg("D3D checkpoint: GetDeviceCaps returned");
 
         if (static_cast<int32_t>(caps.MaxAnisotropy) < g::cfg.anisotropy) {
             g::cfg.anisotropy = caps.MaxAnisotropy;
@@ -1324,7 +1329,9 @@ namespace dx {
 
         *ppReturnedDeviceInterface = dev;
         g::d3d_vr = nullptr;
+        dbg("D3D checkpoint: before Bridge CreateD3D9VR");
         const auto vr_result = CreateD3D9VR(dev, &g::d3d_vr);
+        dbg(std::format("D3D checkpoint: Bridge CreateD3D9VR returned HRESULT 0x{:08X}, proxy {}", static_cast<uint32_t>(vr_result), g::d3d_vr ? "non-null" : "null"));
         if (FAILED(vr_result)) {
             if (g::d3d_vr) {
                 g::d3d_vr->Release();
@@ -1338,6 +1345,7 @@ namespace dx {
             dev->SetSamplerState(i, D3DSAMP_MAXANISOTROPY, g::cfg.anisotropy);
         }
 
+        dbg("D3D checkpoint: before installing device hooks");
         auto devvtbl = get_vtable<IDirect3DDevice9Vtbl>(dev);
         try {
             if (g::vr && g::vr->get_runtime_type() == OPENVR)
@@ -1454,11 +1462,13 @@ namespace dx {
             }
         }
 
+        dbg("D3D checkpoint: CreateDevice detour completed");
         return ret;
     }
 
     IDirect3D9* __stdcall Direct3DCreate9(UINT SDKVersion)
     {
+        dbg("D3D checkpoint: Direct3DCreate9 detour entered");
         if (!g::game)
             return g::hooks::create.call(SDKVersion);
 
@@ -1480,7 +1490,9 @@ namespace dx {
                 // original D3D9 factory call. The x64 Bridge Server owns the
                 // independent Scene session, compositor and Vulkan extension discovery.
                 try {
+                    dbg("D3D checkpoint: before OpenVR background-session constructor");
                     g::vr = new OpenVR();
+                    dbg("D3D checkpoint: OpenVR background-session constructor completed");
                     createdRuntime = true;
                 } catch (const std::exception& e) {
                     MessageBoxA(nullptr, e.what(), "OpenVR init failed", MB_OK);
@@ -1488,7 +1500,9 @@ namespace dx {
             }
         }
 
+        dbg("D3D checkpoint: before original Direct3DCreate9");
         auto d3d = g::hooks::create.call(SDKVersion);
+        dbg(d3d ? "D3D checkpoint: original Direct3DCreate9 returned non-null" : "D3D checkpoint: original Direct3DCreate9 returned null");
         if (!d3d) {
             dbg("Could not initialize Vulkan");
             if (createdRuntime && g::vr) {
@@ -1498,7 +1512,9 @@ namespace dx {
             return nullptr;
         }
 
+        dbg("D3D checkpoint: before reading IDirect3D9 vtable");
         auto d3d_vtbl = get_vtable<IDirect3D9Vtbl>(d3d);
+        dbg("D3D checkpoint: IDirect3D9 vtable read");
         // The CreateDevice implementation is normally shared by D3D9 factory
         // instances. Keep its existing MinHook trampoline instead of removing
         // and recreating the global hook for every Direct3DCreate9 call.
@@ -1514,7 +1530,9 @@ namespace dx {
             }
         } else {
             try {
+                dbg("D3D checkpoint: before CreateDevice hook install");
                 g::hooks::create_device.install(d3d_vtbl->CreateDevice, CreateDevice);
+                dbg("D3D checkpoint: CreateDevice hook installed");
             } catch (const std::runtime_error& e) {
                 dbg(e.what());
                 MessageBoxA(nullptr, e.what(), "Hooking failed", MB_OK);
