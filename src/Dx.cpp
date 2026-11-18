@@ -375,6 +375,11 @@ namespace dx {
 
     static void draw_debug_info(uint64_t cpu_frametime_us)
     {
+        // The RBR game interface is borrowed from the host and may be cleared
+        // while process-lifetime D3D9 hooks remain installed.
+        if (!g::game)
+            return;
+
         g::game->SetColor(1, 0, 1, 1.0);
         g::game->SetFont(IRBRGame::EFonts::FONT_DEBUG);
 
