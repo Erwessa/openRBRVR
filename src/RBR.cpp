@@ -423,8 +423,9 @@ namespace rbr {
             update_horizon_lock_matrix();
         }
 
-        // Cache the initial value of quad view rendering
-        static bool quad_view_rendering_in_use = g::vr && g::vr->is_using_quad_view_rendering();
+        // Read the active runtime state each frame. A function-static cache would
+        // survive plugin teardown and could dereference a VR instance after it was deleted.
+        const bool quad_view_rendering_in_use = g::vr && g::vr->is_using_quad_view_rendering();
 
         if (quad_view_rendering_in_use) {
             bool restart_session = false;
