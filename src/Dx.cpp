@@ -27,6 +27,8 @@ namespace g {
     static thread_local bool applying_state_block;
     static std::vector<IDirect3DVertexShader9*> base_game_shaders;
     static std::vector<IDirect3DVertexShader9*> base_game_multiview_shaders;
+    // Keep the identity of the 40th RBR shader independent of external registrations.
+    static IDirect3DVertexShader9* base_game_shader_39 = nullptr;
     static std::vector<IDirect3DVertexShader9*> external_shaders;
     static std::vector<IDirect3DVertexShader9*> external_multiview_shaders;
     static MultiViewPatchFn spirv_change_multiview_access;
@@ -259,6 +261,8 @@ namespace dx {
             // separate from external shaders registered through the API.
             base_game_shader_indices[i] = g::base_game_shaders.size();
             g::base_game_shaders.push_back(*ppShader);
+            if (i == 39)
+                g::base_game_shader_39 = *ppShader;
         } else {
             // Same for BTB shaders that are loaded during the stage load
             g::original_btb_shaders.push_back(*ppShader);
@@ -975,7 +979,7 @@ namespace dx {
                     // Probably some projection matrix issue, but changing the projection matrix like
                     // we do normally had no effect, so on BTB stages we just won't draw this primitive with this shader.
                     // With multiview this bug seems to not occur so we also do this exception when multiview isn't enabled.
-                    should_skip_drawing = shader == g::base_game_shaders[39];
+                    should_skip_drawing = g::base_game_shader_39 && shader == g::base_game_shader_39;
                 }
                 shader->Release();
                 if (should_skip_drawing) {
