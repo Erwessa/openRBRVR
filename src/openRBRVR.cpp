@@ -30,13 +30,17 @@ openRBRVR::openRBRVR(IRBRGame* g)
     g::game = g;
     dbg("Hooking DirectX");
 
+    dbg("Init checkpoint: before GetModuleHandle(d3d9.dll)");
     auto d3ddll = GetModuleHandle("d3d9.dll");
+    dbg(d3ddll ? "Init checkpoint: d3d9.dll module found" : "Init checkpoint: d3d9.dll module missing");
     if (!d3ddll) {
         dbg("failed to get handle to d3d9.dll\n");
         return;
     }
 
+    dbg("Init checkpoint: before reading d3d9.dll version");
     const auto d3d9dll_versioninfosize = GetFileVersionInfoSizeA("d3d9.dll", nullptr);
+    dbg("Init checkpoint: d3d9.dll version size queried");
     if (d3d9dll_versioninfosize > 0) {
         const auto versioninfo = new uint8_t[d3d9dll_versioninfosize];
         if (GetFileVersionInfoA("d3d9.dll", 0, d3d9dll_versioninfosize, versioninfo) == TRUE) {
@@ -57,7 +61,9 @@ openRBRVR::openRBRVR(IRBRGame* g)
         delete[] versioninfo;
     }
 
+    dbg("Init checkpoint: before resolving Direct3DCreate9");
     auto d3dcreate = reinterpret_cast<decltype(&dx::Direct3DCreate9)>(GetProcAddress(d3ddll, "Direct3DCreate9"));
+    dbg(d3dcreate ? "Init checkpoint: Direct3DCreate9 resolved" : "Init checkpoint: Direct3DCreate9 export missing");
     if (!d3dcreate) {
         dbg("failed to find address to Direct3DCreate9\n");
         return;
@@ -67,17 +73,28 @@ openRBRVR::openRBRVR(IRBRGame* g)
     // Hook::install re-enables a matching retained entry and creates missing entries,
     // allowing recovery after a partial rollback.
     try {
+        dbg("Init checkpoint: before Direct3DCreate9 hook");
         g::hooks::create.install(d3dcreate, dx::Direct3DCreate9);
+        dbg("Init checkpoint: Direct3DCreate9 hook installed");
+        dbg("Init checkpoint: before RBR render hook");
         g::hooks::render.install(*reinterpret_cast<decltype(rbr::render)*>(rbr::get_render_function_addr()), rbr::render);
+        dbg("Init checkpoint: RBR render hook installed");
 
+        dbg("Init checkpoint: before resolving particle hooks");
         const auto addrs = rbr::get_render_particles_function_addrs();
+        dbg("Init checkpoint: particle hook addresses resolved");
         g::hooks::render_particles.install(*reinterpret_cast<decltype(rbr::render_particles)*>(addrs[0]), rbr::render_particles);
         g::hooks::render_particles_2.install(*reinterpret_cast<decltype(rbr::render_particles_2)*>(addrs[1]), rbr::render_particles_2);
         g::hooks::render_particles_3.install(*reinterpret_cast<decltype(rbr::render_particles_3)*>(addrs[2]), rbr::render_particles_3);
         g::hooks::render_particles_4.install(*reinterpret_cast<decltype(rbr::render_particles_4)*>(addrs[3]), rbr::render_particles_4);
+        dbg("Init checkpoint: all particle hooks installed");
 
+        dbg("Init checkpoint: before camera target hook");
         g::hooks::set_camera_target.install(*reinterpret_cast<decltype(rbr::set_camera_target)*>(0x4663f0), rbr::set_camera_target);
+        dbg("Init checkpoint: camera target hook installed");
+        dbg("Init checkpoint: before windscreen hook");
         g::hooks::render_windscreen_effects.install(*reinterpret_cast<decltype(rbr::render_windscreen_effects)*>(rbr::get_address(0x452020)), rbr::render_windscreen_effects);
+        dbg("Init checkpoint: all RBR hooks installed");
     } catch (const std::runtime_error& e) {
         // Disable every hook before attempting rollback. If any detour
         // cannot be disabled, retain the complete Hook ownership state so
@@ -108,7 +125,9 @@ openRBRVR::openRBRVR(IRBRGame* g)
         dbg(e.what());
         MessageBoxA(nullptr, e.what(), "Hooking failed", MB_OK);
     }
+    dbg("Init checkpoint: before loading Plugins/openRBRVR.toml and dxvk.conf");
     g::cfg = g::saved_cfg = Config::from_path("Plugins");
+    dbg("Init checkpoint: configuration loaded");
     g::draw_overlay_border = (g::cfg.debug && g::cfg.debug_mode == 0);
 }
 
