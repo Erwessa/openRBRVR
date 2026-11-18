@@ -762,22 +762,25 @@ namespace dx {
             const auto this_register_patched = std::find(regs.cbegin(), regs.cend(), StartRegister) != regs.cend();
 
             if (!g::optimized_btb_shaders.contains(shader)) {
+                bool patchSucceeded = true;
                 if (regs.empty()) {
                     if (FAILED(g::d3d_vr->SetShaderConstantCount(shader, g::base_shader_data_end_register * 2))) {
                         dbg("Failed to extend BTB shader constant registers");
                         g::failed_multiview_btb_shaders++;
+                        patchSucceeded = false;
                     } else if (!patch_spirv_shader(shader, StartRegister, g::base_shader_data_end_register, false)) {
                         dbg("Shader patch failed!");
                         g::failed_multiview_btb_shaders++;
+                        patchSucceeded = false;
                     }
-                    regs.push_back(StartRegister);
-                    g::patched_btb_shaders[shader] = regs;
-                } else if (!this_register_patched) {
-                    // This is another variable at `StartRegister`, patch the shader again
-                    if (!patch_spirv_shader(shader, StartRegister, g::base_shader_data_end_register, false)) {
-                        dbg("Shader patch failed!");
-                        g::failed_multiview_btb_shaders++;
-                    }
+                } else if (!this_register_patched && !patch_spirv_shader(shader, StartRegister, g::base_shader_data_end_register, false)) {
+                    dbg("Shader patch failed!");
+                    g::failed_multiview_btb_shaders++;
+                    patchSucceeded = false;
+                }
+
+                // Only record a register after its SPIR-V transformation succeeded.
+                if (patchSucceeded && !this_register_patched) {
                     regs.push_back(StartRegister);
                     g::patched_btb_shaders[shader] = regs;
                 }
