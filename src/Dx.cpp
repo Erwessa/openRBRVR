@@ -216,6 +216,11 @@ namespace dx {
                 g::base_game_multiview_shaders.push_back(shader);
                 g::failed_multiview_external_shaders++;
             }
+        } else {
+            // Keep the original/multiview vectors index-aligned even when
+            // multiview is unavailable during registration. It may become
+            // available later, when Set/GetVertexShader use the paired index.
+            g::base_game_multiview_shaders.push_back(shader);
         }
 
         return true;
