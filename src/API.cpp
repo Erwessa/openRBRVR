@@ -20,7 +20,7 @@ extern "C" __declspec(dllexport) IPlugin* RBR_CreatePlugin(IRBRGame* game)
         // Process-lifetime detours point into this DLL. Pin the module before
         // installing them so a host-side FreeLibrary cannot leave patched
         // targets jumping into unmapped code. This runs outside DllMain.
-        static const DWORD modulePinError = [] {
+        static const DWORD modulePinError = []() -> DWORD {
             HMODULE module = nullptr;
             if (GetModuleHandleExW(
                     GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_PIN,
