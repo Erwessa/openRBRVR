@@ -374,10 +374,19 @@ namespace dx {
                 deferred_constants.swap(g::deferred_shader_constants);
             }
 
-            for (const auto& it : deferred_constants) {
+            for (auto it = deferred_constants.cbegin(); it != deferred_constants.cend(); ++it) {
                 // We can just call our patched SetVertexShaderConstantF function
                 // It will handle patching the (BTB) shader etc. correctly
-                SetVertexShaderConstantF(This, it.first, it.second.data(), 4);
+                const HRESULT constantResult = SetVertexShaderConstantF(This, it->first, it->second.data(), 4);
+                if (FAILED(constantResult)) {
+                    // Preserve this and later values for a future successful bind.
+                    // Do not overwrite newer writes that arrived while this batch
+                    // was being replayed.
+                    std::lock_guard lock(g::deferred_shader_constants_mutex);
+                    for (auto pending = it; pending != deferred_constants.cend(); ++pending)
+                        g::deferred_shader_constants.try_emplace(pending->first, pending->second);
+                    break;
+                }
             }
         }
 
