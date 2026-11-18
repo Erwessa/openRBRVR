@@ -9,15 +9,20 @@
 
 #include <MinHook.h>
 
-BOOL APIENTRY DllMain(HANDLE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
+BOOL APIENTRY DllMain(HANDLE, DWORD, LPVOID)
 {
-    MH_Initialize();
     return TRUE;
 }
 
 extern "C" __declspec(dllexport) IPlugin* RBR_CreatePlugin(IRBRGame* game)
 {
     if (!g::openrbrvr) {
+        // Initialize MinHook once, outside DllMain and before installing any hooks.
+        static const MH_STATUS minHookStatus = MH_Initialize();
+        if (minHookStatus != MH_OK) {
+            MessageBoxA(nullptr, MH_StatusToString(minHookStatus), "MinHook initialization failed", MB_OK);
+            return nullptr;
+        }
         g::openrbrvr = new openRBRVR(game);
     }
     return g::openrbrvr;
