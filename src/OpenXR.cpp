@@ -7,6 +7,8 @@
 #include "Util.hpp"
 #include <gtx/quaternion.hpp>
 #include <ranges>
+#include <chrono>
+#include <thread>
 
 #include <d3d11.h>
 #include <d3d11_1.h>
@@ -20,7 +22,7 @@ constexpr std::string xr_result_to_str(XrResult res)
 {
     // XrResultToString can't be used without a valid XrInstance
     // so rolling out my own
-    switch (res) {
+    switch (static_cast<int64_t>(res)) {
         case 0: return "XR_SUCCESS";
         case 1: return "XR_TIMEOUT_EXPIRED";
         case 3: return "XR_SESSION_LOSS_PENDING";
@@ -650,7 +652,7 @@ void OpenXR::init(IDirect3DDevice9* dev, IDirect3DVR9** vrdev, uint32_t companio
                 .MipLevels = 1,
                 .ArraySize = 1,
                 .Format = static_cast<DXGI_FORMAT>(swapchain_format),
-                .SampleDesc = 1,
+                .SampleDesc = { .Count = 1, .Quality = 0 },
                 .Usage = D3D11_USAGE_DEFAULT,
                 .BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE,
                 .CPUAccessFlags = 0,
