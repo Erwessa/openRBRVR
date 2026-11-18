@@ -38,7 +38,11 @@ namespace g {
     static std::vector<IDirect3DVertexShader9*> multiview_btb_shaders;
     static std::unordered_map<IDirect3DVertexShader9*, std::vector<uint32_t>> patched_btb_shaders;
     static std::unordered_set<IDirect3DVertexShader9*> optimized_btb_shaders;
-    static std::unordered_map<uint32_t, std::array<float, 16>> deferred_shader_constants;
+    struct DeferredShaderConstant {
+        uint32_t start_register;
+        std::array<float, 16> values;
+    };
+    static std::vector<DeferredShaderConstant> deferred_shader_constants;
     static std::mutex deferred_shader_constants_mutex;
     static std::atomic<int> failed_multiview_base_game_shaders { 0 };
     static std::atomic<int> failed_multiview_external_shaders { 0 };
@@ -409,14 +413,14 @@ namespace dx {
             for (auto it = deferred_constants.cbegin(); it != deferred_constants.cend(); ++it) {
                 // We can just call our patched SetVertexShaderConstantF function
                 // It will handle patching the (BTB) shader etc. correctly
-                const HRESULT constantResult = SetVertexShaderConstantF(This, it->first, it->second.data(), 4);
+                const HRESULT constantResult = SetVertexShaderConstantF(This, it->start_register, it->values.data(), 4);
                 if (FAILED(constantResult)) {
                     // Preserve this and later values for a future successful bind.
                     // Do not overwrite newer writes that arrived while this batch
                     // was being replayed.
                     std::lock_guard lock(g::deferred_shader_constants_mutex);
-                    for (auto pending = it; pending != deferred_constants.cend(); ++pending)
-                        g::deferred_shader_constants.try_emplace(pending->first, pending->second);
+                    g::deferred_shader_constants.insert(
+                        g::deferred_shader_constants.begin(), it, deferred_constants.cend());
                     break;
                 }
             }
@@ -740,7 +744,7 @@ namespace dx {
             std::copy_n(pConstantData, 16, m.begin());
             {
                 std::lock_guard lock(g::deferred_shader_constants_mutex);
-                g::deferred_shader_constants.insert_or_assign(StartRegister, m);
+                g::deferred_shader_constants.push_back({ StartRegister, m });
             }
         } else if (shader && is_base_shader && Vector4fCount == 4) {
 
