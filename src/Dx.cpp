@@ -1243,7 +1243,7 @@ namespace dx {
                     reinterpret_cast<OpenVR*>(g::vr)->init(dev, &g::d3d_vr, companion_window_width, companion_window_height);
                 }
             }
-        } catch (const std::runtime_error& e) {
+        } catch (const std::exception& e) {
             MessageBoxA(hFocusWindow, e.what(), "VR init failed", MB_OK);
 
             // Either runtime may have allocated render-context or interop
@@ -1286,7 +1286,7 @@ namespace dx {
                 // because it will query extensions when initializing DXVK
                 try {
                     g::vr = new OpenXR();
-                } catch (const std::runtime_error& e) {
+                } catch (const std::exception& e) {
                     MessageBoxA(nullptr, e.what(), "OpenXR init failed", MB_OK);
                 }
             } else {
@@ -1295,7 +1295,7 @@ namespace dx {
                 // independent Scene session, compositor and Vulkan extension discovery.
                 try {
                     g::vr = new OpenVR();
-                } catch (const std::runtime_error& e) {
+                } catch (const std::exception& e) {
                     MessageBoxA(nullptr, e.what(), "OpenVR init failed", MB_OK);
                 }
             }
