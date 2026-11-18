@@ -64,14 +64,15 @@ struct Hook {
         rhs.src = nullptr;
     }
     Hook& operator=(const Hook&) = delete;
-    Hook& operator=(Hook&& rhs) noexcept
+    Hook& operator=(Hook&& rhs)
     {
         if (this == &rhs)
             return *this;
 
-        // Do not overwrite the existing trampoline if MinHook could not remove it.
+        // Report removal failure to the installation transaction instead of
+        // silently discarding the incoming hook.
         if (reset() != MH_OK)
-            return *this;
+            throw std::runtime_error("Could not remove existing hook");
 
         call = rhs.call;
         src = rhs.src;
