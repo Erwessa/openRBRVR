@@ -75,6 +75,11 @@ namespace dx {
     static bool raw_game_projection_valid = false;
     static bool raw_game_camera_dirty = false;
 
+    // UP draws bypass the regular DrawPrimitive hooks. Keep their detours local
+    // to this translation unit because they only publish the raw camera snapshot.
+    static Hook<decltype(IDirect3DDevice9Vtbl::DrawPrimitiveUP)> draw_primitive_up;
+    static Hook<decltype(IDirect3DDevice9Vtbl::DrawIndexedPrimitiveUP)> draw_indexed_primitive_up;
+
     static void publish_raw_game_camera_if_dirty()
     {
         if (!g::vr_render_target || *g::vr_render_target != LeftEye ||
@@ -1037,6 +1042,24 @@ namespace dx {
         return g::d3d_dev->SetRenderTarget(RenderTargetIndex, pRenderTarget);
     }
 
+    HRESULT __stdcall DrawPrimitiveUP(IDirect3DDevice9* This, D3DPRIMITIVETYPE PrimitiveType, UINT PrimitiveCount, const void* pVertexStreamZeroData, UINT VertexStreamZeroStride)
+    {
+        if (!g::game)
+            return draw_primitive_up.call(This, PrimitiveType, PrimitiveCount, pVertexStreamZeroData, VertexStreamZeroStride);
+
+        publish_raw_game_camera_if_dirty();
+        return draw_primitive_up.call(This, PrimitiveType, PrimitiveCount, pVertexStreamZeroData, VertexStreamZeroStride);
+    }
+
+    HRESULT __stdcall DrawIndexedPrimitiveUP(IDirect3DDevice9* This, D3DPRIMITIVETYPE PrimitiveType, UINT MinVertexIndex, UINT NumVertices, UINT PrimitiveCount, const void* pIndexData, D3DFORMAT IndexDataFormat, const void* pVertexStreamZeroData, UINT VertexStreamZeroStride)
+    {
+        if (!g::game)
+            return draw_indexed_primitive_up.call(This, PrimitiveType, MinVertexIndex, NumVertices, PrimitiveCount, pIndexData, IndexDataFormat, pVertexStreamZeroData, VertexStreamZeroStride);
+
+        publish_raw_game_camera_if_dirty();
+        return draw_indexed_primitive_up.call(This, PrimitiveType, MinVertexIndex, NumVertices, PrimitiveCount, pIndexData, IndexDataFormat, pVertexStreamZeroData, VertexStreamZeroStride);
+    }
+
     HRESULT __stdcall DrawPrimitive(IDirect3DDevice9* This, D3DPRIMITIVETYPE PrimitiveType, UINT StartVertex, UINT PrimitiveCount)
     {
         if (!g::game)
@@ -1409,6 +1432,8 @@ namespace dx {
             g::hooks::set_vertex_shader.install(devvtbl->SetVertexShader, SetVertexShader);
             g::hooks::draw_indexed_primitive.install(devvtbl->DrawIndexedPrimitive, DrawIndexedPrimitive);
             g::hooks::draw_primitive.install(devvtbl->DrawPrimitive, DrawPrimitive);
+            draw_primitive_up.install(devvtbl->DrawPrimitiveUP, DrawPrimitiveUP);
+            draw_indexed_primitive_up.install(devvtbl->DrawIndexedPrimitiveUP, DrawIndexedPrimitiveUP);
             g::hooks::set_render_state.install(devvtbl->SetRenderState, SetRenderState);
             g::hooks::clear.install(devvtbl->Clear, Clear);
             g::hooks::end_state_block.install(devvtbl->EndStateBlock, EndStateBlock);
@@ -1426,6 +1451,8 @@ namespace dx {
                 g::hooks::set_render_state,
                 g::hooks::draw_primitive,
                 g::hooks::draw_indexed_primitive,
+                draw_primitive_up,
+                draw_indexed_primitive_up,
                 g::hooks::set_vertex_shader,
                 g::hooks::get_vertex_shader,
                 g::hooks::create_vertex_shader,
@@ -1442,6 +1469,8 @@ namespace dx {
                 g::hooks::set_render_state.reset();
                 g::hooks::draw_primitive.reset();
                 g::hooks::draw_indexed_primitive.reset();
+                draw_primitive_up.reset();
+                draw_indexed_primitive_up.reset();
                 g::hooks::set_vertex_shader.reset();
                 g::hooks::get_vertex_shader.reset();
                 g::hooks::create_vertex_shader.reset();
