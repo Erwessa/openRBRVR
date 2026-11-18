@@ -362,7 +362,7 @@ namespace dx {
         // we have been collecting the data to g::deferred_shader_constants
         // As we now have the shader present, apply the constants so we run
         // our shader patching and data relocation correctly.
-        if (pShader && !g::deferred_shader_constants.empty()) {
+        if (SUCCEEDED(ret) && pShader && !g::deferred_shader_constants.empty()) {
             for (const auto& it : g::deferred_shader_constants) {
                 // We can just call our patched SetVertexShaderConstantF function
                 // It will handle patching the (BTB) shader etc. correctly
