@@ -1284,32 +1284,57 @@ namespace dx {
             dbg(e.what());
             MessageBoxA(hFocusWindow, e.what(), "Hooking failed", MB_OK);
 
-            // Both VR backends require the complete D3D9 hook set. Roll back
-            // every device hook and fail device creation rather than exposing
-            // a partially hooked device to either runtime.
-            g::hooks::end_state_block.reset();
-            g::hooks::reset.reset();
-            g::hooks::clear.reset();
-            g::hooks::set_render_state.reset();
-            g::hooks::draw_primitive.reset();
-            g::hooks::draw_indexed_primitive.reset();
-            g::hooks::set_vertex_shader.reset();
-            g::hooks::get_vertex_shader.reset();
-            g::hooks::create_vertex_shader.reset();
-            g::hooks::present.reset();
-            g::hooks::set_transform.reset();
-            g::hooks::set_vertex_shader_constant_f.reset();
+            // Disable the complete device hook set before releasing anything
+            // that its detours may access. A failed disable leaves the device
+            // and VR objects quarantined for the remaining active detours.
+            const bool hooksDisabled = disable_hooks(
+                g::hooks::end_state_block,
+                g::hooks::reset,
+                g::hooks::clear,
+                g::hooks::set_render_state,
+                g::hooks::draw_primitive,
+                g::hooks::draw_indexed_primitive,
+                g::hooks::set_vertex_shader,
+                g::hooks::get_vertex_shader,
+                g::hooks::create_vertex_shader,
+                g::hooks::present,
+                g::hooks::set_transform,
+                g::hooks::set_vertex_shader_constant_f);
 
-            if (g::vr) {
-                delete g::vr;
-                g::vr = nullptr;
-            } else if (g::d3d_vr) {
-                g::d3d_vr->Release();
-                g::d3d_vr = nullptr;
+            if (hooksDisabled) {
+                // Removing a disabled hook may still fail. Its Hook object
+                // retains ownership and a later install() can re-enable it.
+                g::hooks::end_state_block.reset();
+                g::hooks::reset.reset();
+                g::hooks::clear.reset();
+                g::hooks::set_render_state.reset();
+                g::hooks::draw_primitive.reset();
+                g::hooks::draw_indexed_primitive.reset();
+                g::hooks::set_vertex_shader.reset();
+                g::hooks::get_vertex_shader.reset();
+                g::hooks::create_vertex_shader.reset();
+                g::hooks::present.reset();
+                g::hooks::set_transform.reset();
+                g::hooks::set_vertex_shader_constant_f.reset();
+
+                if (g::vr) {
+                    delete g::vr;
+                    g::vr = nullptr;
+                } else if (g::d3d_vr) {
+                    g::d3d_vr->Release();
+                    g::d3d_vr = nullptr;
+                }
+
+                dev->Release();
+            } else {
+                // At least one detour may still be executing. Keep the device
+                // reference and its global pointer alive rather than allowing
+                // an active callback to dereference a released D3D9 device.
+                g::d3d_dev = dev;
+                dbg("Could not disable every D3D9 hook; retaining device and VR resources");
             }
 
             *ppReturnedDeviceInterface = nullptr;
-            dev->Release();
             return E_FAIL;
         }
 
