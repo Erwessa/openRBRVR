@@ -176,6 +176,11 @@ namespace dx {
             return false;
         }
 
+        // Registration is idempotent: a caller may notify us about a shader
+        // that was already captured by CreateVertexShader or registered earlier.
+        if (std::find(g::base_game_shaders.cbegin(), g::base_game_shaders.cend(), shader) != g::base_game_shaders.cend())
+            return true;
+
         UINT fn_size;
 
         if (shader->GetFunction(nullptr, &fn_size) != D3D_OK) {
