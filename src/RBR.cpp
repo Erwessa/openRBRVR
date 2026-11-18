@@ -587,6 +587,11 @@ namespace rbr {
 
     void* set_camera_target(void* a, float* cam_pos, float* cam_target)
     {
+        // RBR hooks can outlive a plugin instance. Once the borrowed game
+        // interface is cleared, bypass plugin camera state and call the game.
+        if (!g::game || !g::camera_type_ptr)
+            return g::hooks::set_camera_target.call(a, cam_pos, cam_target);
+
         if (*g::camera_type_ptr == SEAT_MOVE_MAGIC) {
             memcpy(cam_pos, glm::value_ptr(g::seat_translation), 3 * sizeof(float));
             // Align the position and target values to point the camera directly forward
@@ -599,6 +604,13 @@ namespace rbr {
     // RBR 3D scene draw function is rerouted here
     void __fastcall render(void* p)
     {
+        // This hook is process-lifetime, while the plugin and its borrowed
+        // IRBRGame interface may be recreated independently.
+        if (!g::game || !g::d3d_dev) {
+            g::hooks::render.call(p);
+            return;
+        }
+
         auto do_rendering = init_or_update_game_data(reinterpret_cast<uintptr_t>(p));
 
         // Release the COM references retained by the previous render invocation
